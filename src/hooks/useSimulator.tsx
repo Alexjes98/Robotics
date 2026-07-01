@@ -446,6 +446,13 @@ interface SimulatorContextType {
   robotPos: [number, number, number];
   robotHeading: number;
   obstaclePos: [number, number, number];
+
+  // Project Import/Export
+  isLoadingProject: boolean;
+  loadingSteps: string[];
+  currentLoadingStep: string;
+  saveProject: () => void;
+  loadProjectData: (jsonData: string) => Promise<void>;
 }
 
 const SimulatorContext = createContext<SimulatorContextType | undefined>(undefined);
@@ -475,6 +482,11 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [robotPos, setRobotPos] = useState<[number, number, number]>([0, 0.4, 0]);
   const [robotHeading, setRobotHeading] = useState<number>(0);
   const [obstaclePos, setObstaclePos] = useState<[number, number, number]>([0, 0.5, -4.5]);
+
+  // Project Loading states
+  const [isLoadingProject, setIsLoadingProject] = useState<boolean>(false);
+  const [loadingSteps, setLoadingSteps] = useState<string[]>([]);
+  const [currentLoadingStep, setCurrentLoadingStep] = useState<string>('');
 
   // Refs for Arduino execution loop
   const executionRef = useRef<{
@@ -1271,6 +1283,130 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [isRunning, robotHeading, obstaclePos, lightLevel, components, wires, ledPowerStates]);
 
+  // Save the minimal project layout config to a text JSON file
+  const saveProject = () => {
+    const projectData = {
+      version: '1.0.0',
+      timestamp: Date.now(),
+      components: components.map(comp => ({
+        id: comp.id,
+        type: comp.type,
+        label: comp.label,
+        x: comp.x,
+        y: comp.y,
+        color: comp.color,
+        x3d: comp.x3d,
+        y3d: comp.y3d,
+        z3d: comp.z3d,
+        rx3d: comp.rx3d,
+        ry3d: comp.ry3d,
+        rz3d: comp.rz3d
+      })),
+      wires: wires.map(wire => ({
+        from: wire.from,
+        to: wire.to,
+        color: wire.color
+      })),
+      code,
+      selectedTemplate,
+      sensorDistance,
+      lightLevel,
+      robotPos,
+      robotHeading,
+      obstaclePos
+    };
+
+    const jsonString = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `robolab_project_${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Reconstruct components and wires from minimal serialized project schema
+  const loadProjectData = async (jsonData: string) => {
+    try {
+      const data = JSON.parse(jsonData);
+      if (!data.components || !Array.isArray(data.components)) {
+        throw new Error("Invalid project configuration: components list is missing.");
+      }
+
+      // Safeguard: Stop the running simulation thread
+      stopSimulation();
+      setIsLoadingProject(true);
+      setLoadingSteps([]);
+
+      const steps = [
+        "Decompressing robotic project parameters...",
+        "Restoring component entities and models...",
+        "Calibrating 3D welder coordinates...",
+        "Synthesizing wiring layout and pin configurations...",
+        "Loading Arduino firmware compilation...",
+        "Syncing workspace controls..."
+      ];
+
+      // Simulated timeline calibration delay for high-tech user feedback
+      for (let i = 0; i < steps.length; i++) {
+        setCurrentLoadingStep(steps[i]);
+        setLoadingSteps(prev => [...prev, steps[i]]);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      // Reconstruct components from templates in INITIAL_COMPONENTS
+      const reconstructedComponents: RoboticComponent[] = data.components.map((item: any) => {
+        const template = INITIAL_COMPONENTS.find(c => c.type === item.type);
+        if (!template) {
+          throw new Error(`Unknown component type: ${item.type}`);
+        }
+        return {
+          ...template,
+          id: item.id,
+          type: item.type,
+          label: item.label || template.label,
+          x: typeof item.x === 'number' ? item.x : template.x,
+          y: typeof item.y === 'number' ? item.y : template.y,
+          color: item.color,
+          x3d: typeof item.x3d === 'number' ? item.x3d : template.x3d,
+          y3d: typeof item.y3d === 'number' ? item.y3d : template.y3d,
+          z3d: typeof item.z3d === 'number' ? item.z3d : template.z3d,
+          rx3d: typeof item.rx3d === 'number' ? item.rx3d : template.rx3d,
+          ry3d: typeof item.ry3d === 'number' ? item.ry3d : template.ry3d,
+          rz3d: typeof item.rz3d === 'number' ? item.rz3d : template.rz3d
+        };
+      });
+
+      // Reconstruct wires
+      const reconstructedWires: WireConnection[] = (data.wires || []).map((w: any) => ({
+        id: w.id || `wire_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        from: w.from,
+        to: w.to,
+        color: w.color || activeWireColor
+      }));
+
+      // Update simulator context states
+      setComponents(reconstructedComponents);
+      setWires(reconstructedWires);
+      if (typeof data.code === 'string') setCode(data.code);
+      if (data.selectedTemplate) setSelectedTemplate(data.selectedTemplate);
+      if (typeof data.sensorDistance === 'number') setSensorDistance(data.sensorDistance);
+      if (typeof data.lightLevel === 'number') setLightLevel(data.lightLevel);
+      if (Array.isArray(data.robotPos) && data.robotPos.length === 3) setRobotPos(data.robotPos);
+      if (typeof data.robotHeading === 'number') setRobotHeading(data.robotHeading);
+      if (Array.isArray(data.obstaclePos) && data.obstaclePos.length === 3) setObstaclePos(data.obstaclePos);
+
+      setIsLoadingProject(false);
+    } catch (err: any) {
+      setIsLoadingProject(false);
+      setError(`Failed to load project: ${err.message || 'Malformed schema.'}`);
+    }
+  };
+
   return (
     <SimulatorContext.Provider
       value={{
@@ -1288,6 +1424,9 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ledPowerStates,
         motorPowerStates,
         selected3DId,
+        isLoadingProject,
+        loadingSteps,
+        currentLoadingStep,
         
         setComponents,
         addComponent,
@@ -1310,6 +1449,8 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         update3DPosition,
         setSelected3DId,
         closeErrorModal,
+        saveProject,
+        loadProjectData,
         
         robotPos,
         robotHeading,

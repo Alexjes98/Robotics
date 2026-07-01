@@ -16,11 +16,33 @@ import {
   Eye, 
   Wifi,
   Grid,
-  Activity
+  Activity,
+  Save,
+  Upload,
+  Loader2
 } from 'lucide-react';
 
 const DashboardHeader: React.FC = () => {
-  const { isRunning, startSimulation, stopSimulation } = useSimulator();
+  const { isRunning, startSimulation, stopSimulation, saveProject, loadProjectData } = useSimulator();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        loadProjectData(text);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset to allow importing the same file again
+  };
 
   return (
     <header className="app-header">
@@ -31,6 +53,37 @@ const DashboardHeader: React.FC = () => {
 
       {/* Simulation status indicator and run actions */}
       <div className="header-controls">
+        {/* Project Load / Save actions */}
+        <button 
+          className="btn btn-outline btn-sm" 
+          onClick={saveProject} 
+          disabled={isRunning}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          title="Save current project config to device"
+        >
+          <Save size={14} />
+          SAVE PROJECT
+        </button>
+
+        <button 
+          className="btn btn-outline btn-sm" 
+          onClick={handleImportClick} 
+          disabled={isRunning}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          title="Load project config from file"
+        >
+          <Upload size={14} />
+          LOAD PROJECT
+        </button>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          accept=".json,.robo" 
+          onChange={handleFileChange} 
+        />
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -225,6 +278,36 @@ const DashboardContent: React.FC = () => {
   );
 };
 
+const ProjectLoaderOverlay: React.FC = () => {
+  const { isLoadingProject, loadingSteps, currentLoadingStep } = useSimulator();
+
+  if (!isLoadingProject) return null;
+
+  return (
+    <div className="project-loader-overlay">
+      <div className="project-loader-card">
+        <div className="project-loader-spinner">
+          <Loader2 className="spinner-icon" size={42} />
+        </div>
+        <h3>Reconstructing Design</h3>
+        <div className="current-step">{currentLoadingStep}</div>
+        
+        <div className="steps-list">
+          {loadingSteps.map((step, idx) => (
+            <div 
+              key={idx} 
+              className={`step-item ${idx < loadingSteps.length - 1 ? 'completed' : ''}`}
+            >
+              <span className="step-bullet">✓</span>
+              <span className="step-text">{step}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   return (
     <SimulatorProvider>
@@ -232,6 +315,7 @@ export const App: React.FC = () => {
         <DashboardHeader />
         <DashboardContent />
         <ErrorModal />
+        <ProjectLoaderOverlay />
       </div>
     </SimulatorProvider>
   );

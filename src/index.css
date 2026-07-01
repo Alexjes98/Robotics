@@ -627,3 +627,124 @@ dialog::backdrop {
   border-color: #ffffff;
   transform: scale(1.1);
 }
+
+/* Project loader overlay styles */
+.project-loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 9, 12, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeInOverlay 0.3s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.project-loader-card {
+  width: 420px;
+  padding: 32px;
+  background: rgba(20, 23, 29, 0.8);
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 0 40px rgba(56, 189, 248, 0.15);
+  border-radius: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: scaleInCard 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleInCard {
+  from { transform: scale(0.9) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.project-loader-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--accent-blue);
+  filter: drop-shadow(0 0 10px var(--accent-blue));
+  margin-bottom: 8px;
+}
+
+.spinner-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.project-loader-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  margin: 0;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.current-step {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent-blue);
+  background: rgba(56, 189, 248, 0.05);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px dashed rgba(56, 189, 248, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 12px;
+  padding-right: 4px;
+  text-align: left;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  animation: slideInStep 0.25s ease-out forwards;
+}
+
+@keyframes slideInStep {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.step-item.completed {
+  color: var(--accent-green);
+}
+
+.step-bullet {
+  color: var(--accent-green);
+  font-weight: bold;
+}
+
+.step-text {
+  font-family: var(--font-mono);
+}
