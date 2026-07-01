@@ -1,0 +1,629 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Fonts */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Theme Palette (Cyberpunk / Modern Dark) */
+  --bg-darker: #08090c;
+  --bg-dark: #0d0f13;
+  --bg-panel: #14171d;
+  --bg-card: rgba(20, 23, 29, 0.75);
+
+  --border-light: rgba(255, 255, 255, 0.06);
+  --border-glow: rgba(56, 189, 248, 0.3);
+  --border-danger: rgba(239, 68, 68, 0.4);
+
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  /* Accent Colors */
+  --accent-blue: #38bdf8;
+  /* Primary Electric Blue */
+  --accent-blue-glow: rgba(56, 189, 248, 0.15);
+
+  --accent-green: #34d399;
+  /* Running/Signal Green */
+  --accent-green-glow: rgba(52, 211, 153, 0.2);
+
+  --accent-amber: #fbbf24;
+  /* Warning/Sensor yellow */
+
+  --accent-red: #ef4444;
+  /* Error/Stop/VCC Red */
+  --accent-red-glow: rgba(239, 68, 68, 0.2);
+
+  --accent-purple: #a78bfa;
+  /* Chip / Serial purple */
+
+  /* Dimensions */
+  --header-height: 56px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--bg-darker);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #272c38;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-blue);
+}
+
+/* App Grid Layout */
+.app-container {
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-darker);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.03) 0%, transparent 80%),
+    linear-gradient(rgba(255, 255, 255, 0.007) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* Header */
+.app-header {
+  grid-row: 1;
+  background: rgba(13, 15, 19, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 10;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Main Dashboard Panel Split */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  height: calc(100vh - var(--header-height));
+  width: 100vw;
+  overflow: hidden;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 240px 1fr 300px;
+  }
+}
+
+/* Side Panels */
+.side-panel {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.side-panel.right {
+  border-right: none;
+  border-left: 1px solid var(--border-light);
+}
+
+.panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Glassmorphism Cards */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel:hover {
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
+/* 2D Canvas Workspace */
+.center-workspace {
+  display: grid;
+  grid-template-rows: 1fr 320px;
+  height: 100%;
+  position: relative;
+  background-color: var(--bg-dark);
+}
+
+.workspace-2d {
+  position: relative;
+  overflow: auto;
+  outline: none;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.015) 8%, transparent 8%),
+    radial-gradient(rgba(255, 255, 255, 0.01) 8%, transparent 8%);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+/* 3D Simulation Panel */
+.workspace-3d {
+  position: relative;
+  border-top: 1px solid var(--border-light);
+  background: #090a0d;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Neon buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: var(--bg-darker);
+  box-shadow: 0 0 12px var(--accent-blue-glow);
+}
+
+.btn-primary:hover {
+  background: #7dd3fc;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-success {
+  background: var(--accent-green);
+  color: var(--bg-darker);
+  box-shadow: 0 0 12px var(--accent-green-glow);
+}
+
+.btn-success:hover {
+  background: #6ee7b7;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--accent-red);
+  color: var(--text-primary);
+  box-shadow: 0 0 12px var(--accent-red-glow);
+}
+
+.btn-danger:hover {
+  background: #f87171;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-light);
+}
+
+.btn-outline:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--text-secondary);
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+
+/* Arduino Code Editor Layout */
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.code-textarea-wrapper {
+  position: relative;
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  background: #111318;
+  overflow: auto;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.code-editor-textarea {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  resize: none;
+  outline: none;
+  padding: 16px;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* Serial Monitor Terminal styling */
+.serial-monitor {
+  height: 140px;
+  background: #050608;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-light);
+}
+
+.serial-logs {
+  flex: 1;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #10b981;
+  overflow-y: auto;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  background: radial-gradient(rgba(16, 185, 129, 0.02) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+/* Tool Drawer items */
+.components-list {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.component-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  cursor: grab;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.component-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(56, 189, 248, 0.2);
+  transform: translateX(2px);
+}
+
+.component-card:active {
+  cursor: grabbing;
+}
+
+.component-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.component-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.component-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.component-desc {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+/* Wires list styling */
+.connections-panel {
+  padding: 14px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  height: 180px;
+  overflow: hidden;
+}
+
+.connections-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.connection-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 0.75rem;
+}
+
+.connection-text {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+/* 2D Canvas Pins styling */
+.pin-node {
+  cursor: pointer;
+  transition: r 0.1s ease, fill 0.2s ease;
+}
+
+.pin-node:hover {
+  r: 6;
+  filter: drop-shadow(0 0 4px var(--accent-blue));
+}
+
+.pin-node.selected {
+  fill: var(--accent-blue);
+  r: 6.5;
+  filter: drop-shadow(0 0 6px var(--accent-blue));
+}
+
+/* Standard HTML dialog styles with fallbacks */
+dialog {
+  margin: auto;
+  background: rgba(20, 23, 29, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-danger);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+  color: var(--text-primary);
+  outline: none;
+}
+
+dialog::backdrop {
+  background: rgba(5, 6, 8, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent-red);
+}
+
+.modal-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.modal-content code {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Animations */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(52, 211, 153, 0.6);
+  }
+
+  100% {
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+  }
+}
+
+.pulse-success {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* Custom 2D Board Overlay info */
+.workspace-overlay-info {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(13, 15, 19, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.active-telemetry {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(13, 15, 19, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.telemetry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+}
+
+.telemetry-label {
+  color: var(--text-secondary);
+}
+
+.telemetry-value {
+  font-weight: 600;
+}
+
+.telemetry-value.green {
+  color: var(--accent-green);
+}
+
+.telemetry-value.amber {
+  color: var(--accent-amber);
+}
+
+.telemetry-value.blue {
+  color: var(--accent-blue);
+}
+
+/* 3D HUD controls overlay */
+.overlay-3d-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+}
+
+.wire-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(13, 15, 19, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+}
+
+.color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.1s ease;
+}
+
+.color-dot:hover {
+  transform: scale(1.2);
+}
+
+.color-dot.active {
+  border-color: #ffffff;
+  transform: scale(1.1);
+}
