@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSimulator } from '../hooks/useSimulator';
+import { useSimulator, type RoboticComponent } from '../hooks/useSimulator';
 import { Trash2 } from 'lucide-react';
 
 const getLedColors = (colorName?: string, isBlown?: boolean, isPowered?: boolean) => {
@@ -60,7 +60,8 @@ export const Breadboard2D: React.FC = () => {
     lightLevel,
     ledPowerStates,
     motorPowerStates,
-    setActiveWireColor
+    setActiveWireColor,
+    toggleSwitch
   } = useSimulator();
 
   // Canvas Pan & Zoom state
@@ -77,6 +78,7 @@ export const Breadboard2D: React.FC = () => {
   // Dragging state
   const [draggedCompId, setDraggedCompId] = useState<string | null>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasDraggedRef = useRef<boolean>(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -183,6 +185,7 @@ export const Breadboard2D: React.FC = () => {
       const newX = Math.round(coords.x - dragOffset.current.x);
       const newY = Math.round(coords.y - dragOffset.current.y);
       updateComponentPosition(draggedCompId, newX, newY);
+      hasDraggedRef.current = true;
     }
   };
 
@@ -200,11 +203,23 @@ export const Breadboard2D: React.FC = () => {
       y: coords.y - comp.y
     };
     setDraggedCompId(compId);
+    hasDraggedRef.current = false;
   };
 
   const handleMouseUp = () => {
     setIsPanning(false);
     setDraggedCompId(null);
+  };
+
+  const handleComponentClick = (comp: RoboticComponent, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
+    if (comp.type === 'spst' || comp.type === 'spdt') {
+      toggleSwitch(comp.id);
+    }
   };
 
   // Handle Pin Clicks (Wiring)
@@ -366,19 +381,19 @@ export const Breadboard2D: React.FC = () => {
 
         {/* Real-time Telemetry (Breadboard Mode) */}
         {isRunning && (() => {
-          const hasMotorL = components.some(c => c.type === 'motorL');
-          const hasMotorR = components.some(c => c.type === 'motorR');
+          const hasMotorL = components.some(c => c.type === 'motor' && c.x3d < 0);
+          const hasMotorR = components.some(c => c.type === 'motor' && c.x3d >= 0);
           const hasSensor = components.some(c => c.type === 'sensor');
           const hasLdr = components.some(c => c.type === 'ldr');
           const hasLed = components.some(c => c.type === 'led' || c.type === 'arduino');
 
           const speedL = components
-            .filter(c => c.type === 'motorL')
+            .filter(c => c.type === 'motor' && c.x3d < 0)
             .map(c => motorPowerStates[c.id] || 0)
             .reduce((sum, val) => sum + val, 0);
           
           const speedR = components
-            .filter(c => c.type === 'motorR')
+            .filter(c => c.type === 'motor' && c.x3d >= 0)
             .map(c => motorPowerStates[c.id] || 0)
             .reduce((sum, val) => sum + val, 0);
 
@@ -514,7 +529,7 @@ export const Breadboard2D: React.FC = () => {
                 headerColor = '#1f2937';
                 bodyColor = '#111827';
                 strokeColor = 'rgba(156, 163, 175, 0.4)';
-              } else if (comp.type === 'motorL' || comp.type === 'motorR') {
+              } else if (comp.type === 'motor') {
                 headerColor = '#115e59';
                 bodyColor = '#042f2e';
                 strokeColor = 'rgba(20, 184, 166, 0.4)';
@@ -530,6 +545,14 @@ export const Breadboard2D: React.FC = () => {
                 headerColor = '#7c2d12';
                 bodyColor = '#431407';
                 strokeColor = 'rgba(251, 191, 36, 0.4)';
+              } else if (comp.type === 'spst') {
+                headerColor = '#334155';
+                bodyColor = '#1e293b';
+                strokeColor = 'rgba(148, 163, 184, 0.4)';
+              } else if (comp.type === 'spdt') {
+                headerColor = '#475569';
+                bodyColor = '#0f172a';
+                strokeColor = 'rgba(203, 213, 225, 0.4)';
               }
 
               return (
@@ -537,7 +560,8 @@ export const Breadboard2D: React.FC = () => {
                   key={comp.id}
                   transform={`translate(${comp.x}, ${comp.y})`}
                   onMouseDown={(e) => handleCompMouseDown(comp.id, e)}
-                  style={{ cursor: isRunning ? 'default' : (isSpacePressed ? 'grab' : 'move') }}
+                  onClick={(e) => handleComponentClick(comp, e)}
+                  style={{ cursor: (comp.type === 'spst' || comp.type === 'spdt') ? 'pointer' : (isRunning ? 'default' : (isSpacePressed ? 'grab' : 'move')) }}
                 >
                   {/* Shadow */}
                   <rect
@@ -640,7 +664,7 @@ export const Breadboard2D: React.FC = () => {
                     </g>
                   )}
 
-                  {(comp.type === 'motorL' || comp.type === 'motorR') && (
+                  {comp.type === 'motor' && (
                     <g style={{ pointerEvents: 'none' }}>
                       <rect x="10" y="30" width="100" height="40" rx="4" fill="#1e293b" />
                       <circle cx="30" cy="50" r="15" fill="#f59e0b" />
@@ -735,6 +759,56 @@ export const Breadboard2D: React.FC = () => {
                       <rect x="35" y="12" width="3" height="16" fill="#ef4444" />
                       <rect x="42" y="12" width="3" height="16" fill="#78350f" />
                       <rect x="52" y="12" width="3" height="16" fill="#eab308" />
+                    </g>
+                  )}
+
+                  {comp.type === 'spst' && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x="15" y="32" width="60" height="12" rx="2" fill="#0f172a" stroke="rgba(255,255,255,0.05)" />
+                      <circle cx="25" cy="38" r="3.5" fill="#94a3b8" />
+                      <circle cx="65" cy="38" r="3.5" fill="#94a3b8" />
+                      {comp.state === 'closed' ? (
+                        <line x1="25" y1="38" x2="65" y2="38" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" />
+                      ) : (
+                        <line x1="25" y1="38" x2="55" y2="22" stroke="#f87171" strokeWidth="3" strokeLinecap="round" />
+                      )}
+                      <rect x="27" y="10" width="36" height="10" rx="2" fill={comp.state === 'closed' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)'} />
+                      <text
+                        x="45"
+                        y="18"
+                        fill={comp.state === 'closed' ? '#4ade80' : '#f87171'}
+                        fontSize="7"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        fontFamily="var(--font-mono)"
+                      >
+                        {comp.state === 'closed' ? 'CLOSED' : 'OPEN'}
+                      </text>
+                    </g>
+                  )}
+
+                  {comp.type === 'spdt' && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x="15" y="12" width="70" height="36" rx="2" fill="#0f172a" stroke="rgba(255,255,255,0.05)" />
+                      <circle cx="25" cy="30" r="3.5" fill="#94a3b8" />
+                      <circle cx="75" cy="20" r="3.5" fill="#94a3b8" />
+                      <circle cx="75" cy="40" r="3.5" fill="#94a3b8" />
+                      {comp.state === 'L2' ? (
+                        <line x1="25" y1="30" x2="75" y2="40" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" />
+                      ) : (
+                        <line x1="25" y1="30" x2="75" y2="20" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
+                      )}
+                      <text
+                        x="50"
+                        y="43"
+                        fill="#cbd5e1"
+                        fontSize="6.5"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        fontFamily="var(--font-mono)"
+                      >
+                        {comp.state === 'L2' ? 'COM ➔ L2' : 'COM ➔ L1'}
+                      </text>
                     </g>
                   )}
 

@@ -12,7 +12,7 @@ export interface Pin {
 // --- Component Definition ---
 export interface RoboticComponent {
   id: string; // unique, e.g. "arduino_0", "resistor_1"
-  type: 'arduino' | 'hbridge' | 'motorL' | 'motorR' | 'sensor' | 'battery' | 'led' | 'ldr' | 'breadboard' | 'resistor';
+  type: 'arduino' | 'hbridge' | 'motor' | 'sensor' | 'battery' | 'led' | 'ldr' | 'breadboard' | 'resistor' | 'spst' | 'spdt';
   label: string;
   x: number; // canvas absolute x
   y: number; // canvas absolute y
@@ -21,6 +21,7 @@ export interface RoboticComponent {
   pins: Pin[];
   
   color?: 'red' | 'green' | 'blue' | 'yellow' | 'white';
+  state?: 'open' | 'closed' | 'L1' | 'L2';
 
   // 3D positioning and rotation (Welding)
   x3d: number;
@@ -119,33 +120,18 @@ export const INITIAL_COMPONENTS: RoboticComponent[] = [
     rx3d: 0, ry3d: 0, rz3d: 0
   },
   {
-    id: 'motorL',
-    type: 'motorL',
-    label: 'Left DC Motor',
+    id: 'motor',
+    type: 'motor',
+    label: 'DC Motor',
     x: 60,
     y: 80,
     width: 120,
     height: 80,
     pins: [
-      { name: 'M+', x: 60, y: 80, type: 'motor-in' },
-      { name: 'M-', x: 80, y: 80, type: 'motor-in' }
+      { name: 'M+', x: 50, y: 80, type: 'motor-in' },
+      { name: 'M-', x: 70, y: 80, type: 'motor-in' }
     ],
     x3d: -0.38, y3d: 0, z3d: 0,
-    rx3d: 0, ry3d: 0, rz3d: 0
-  },
-  {
-    id: 'motorR',
-    type: 'motorR',
-    label: 'Right DC Motor',
-    x: 620,
-    y: 80,
-    width: 120,
-    height: 80,
-    pins: [
-      { name: 'M+', x: 40, y: 80, type: 'motor-in' },
-      { name: 'M-', x: 60, y: 80, type: 'motor-in' }
-    ],
-    x3d: 0.38, y3d: 0, z3d: 0,
     rx3d: 0, ry3d: 0, rz3d: 0
   },
   {
@@ -280,6 +266,39 @@ export const INITIAL_COMPONENTS: RoboticComponent[] = [
       { name: 'P2', x: 75, y: 20, type: 'signal' }
     ],
     x3d: -0.2, y3d: 0.05, z3d: -0.2,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'spst',
+    type: 'spst',
+    label: 'SPST Switch',
+    x: 100,
+    y: 100,
+    width: 90,
+    height: 50,
+    pins: [
+      { name: 'L1', x: 5, y: 25, type: 'signal' },
+      { name: 'L2', x: 85, y: 25, type: 'signal' }
+    ],
+    state: 'open',
+    x3d: -0.1, y3d: 0.05, z3d: -0.2,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'spdt',
+    type: 'spdt',
+    label: 'SPDT Switch',
+    x: 100,
+    y: 100,
+    width: 100,
+    height: 60,
+    pins: [
+      { name: 'COM', x: 5, y: 30, type: 'signal' },
+      { name: 'L1', x: 95, y: 15, type: 'signal' },
+      { name: 'L2', x: 95, y: 45, type: 'signal' }
+    ],
+    state: 'L1',
+    x3d: 0.1, y3d: 0.05, z3d: -0.2,
     rx3d: 0, ry3d: 0, rz3d: 0
   }
 ];
@@ -441,6 +460,7 @@ interface SimulatorContextType {
   update3DPosition: (id: string, field: 'x3d' | 'y3d' | 'z3d' | 'rx3d' | 'ry3d' | 'rz3d', val: number) => void;
   setSelected3DId: (id: string | null) => void;
   closeErrorModal: () => void;
+  toggleSwitch: (id: string) => void;
   
   // Rigid body offsets
   robotPos: [number, number, number];
@@ -602,6 +622,19 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setError(null);
   };
 
+  const toggleSwitch = (id: string) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id === id) {
+        if (comp.type === 'spst') {
+          return { ...comp, state: comp.state === 'closed' ? 'open' : 'closed' };
+        } else if (comp.type === 'spdt') {
+          return { ...comp, state: comp.state === 'L2' ? 'L1' : 'L2' };
+        }
+      }
+      return comp;
+    }));
+  };
+
   // Graph tracer for electrical components
   const getConnectedComponents = (): { pinToComponentId: Record<string, string>; components: string[][] } => {
     const adj: Record<string, string[]> = {};
@@ -664,6 +697,26 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               adj[v].push(u);
             }
           }
+        }
+      }
+      
+      // SPST Switch internal connection when closed
+      if (c.type === 'spst' && c.state === 'closed') {
+        const u = `${c.id}:L1`;
+        const v = `${c.id}:L2`;
+        if (adj[u] && adj[v]) {
+          adj[u].push(v);
+          adj[v].push(u);
+        }
+      }
+
+      // SPDT Switch internal connection depending on position
+      if (c.type === 'spdt') {
+        const com = `${c.id}:COM`;
+        const targetPin = c.state === 'L2' ? `${c.id}:L2` : `${c.id}:L1`;
+        if (adj[com] && adj[targetPin]) {
+          adj[com].push(targetPin);
+          adj[targetPin].push(com);
         }
       }
     });
@@ -1096,6 +1149,26 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               }
             }
           }
+
+          // SPST Switch internal connection when closed
+          if (c.type === 'spst' && c.state === 'closed') {
+            const u = `${c.id}:L1`;
+            const v = `${c.id}:L2`;
+            if (adj[u] && adj[v]) {
+              adj[u].push(v);
+              adj[v].push(u);
+            }
+          }
+
+          // SPDT Switch internal connection depending on position
+          if (c.type === 'spdt') {
+            const com = `${c.id}:COM`;
+            const targetPin = c.state === 'L2' ? `${c.id}:L2` : `${c.id}:L1`;
+            if (adj[com] && adj[targetPin]) {
+              adj[com].push(targetPin);
+              adj[targetPin].push(com);
+            }
+          }
         });
 
         // Resistors
@@ -1169,7 +1242,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setLedPowerStates(nextLedStates);
 
       // Solve DC Motors speed
-      const motors = components.filter(c => c.type === 'motorL' || c.type === 'motorR');
+      const motors = components.filter(c => c.type === 'motor');
       const nextMotorStates: Record<string, number> = {};
 
       motors.forEach(mot => {
@@ -1202,10 +1275,12 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let speedR = 0;
 
       components.forEach(c => {
-        if (c.type === 'motorL') {
-          speedL += (nextMotorStates[c.id] || 0) / 255;
-        } else if (c.type === 'motorR') {
-          speedR += (nextMotorStates[c.id] || 0) / 255;
+        if (c.type === 'motor') {
+          if (c.x3d < 0) {
+            speedL += (nextMotorStates[c.id] || 0) / 255;
+          } else {
+            speedR += (nextMotorStates[c.id] || 0) / 255;
+          }
         }
       });
 
@@ -1295,6 +1370,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         x: comp.x,
         y: comp.y,
         color: comp.color,
+        state: comp.state,
         x3d: comp.x3d,
         y3d: comp.y3d,
         z3d: comp.z3d,
@@ -1372,6 +1448,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           x: typeof item.x === 'number' ? item.x : template.x,
           y: typeof item.y === 'number' ? item.y : template.y,
           color: item.color,
+          state: item.state || template.state,
           x3d: typeof item.x3d === 'number' ? item.x3d : template.x3d,
           y3d: typeof item.y3d === 'number' ? item.y3d : template.y3d,
           z3d: typeof item.z3d === 'number' ? item.z3d : template.z3d,
@@ -1449,6 +1526,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         update3DPosition,
         setSelected3DId,
         closeErrorModal,
+        toggleSwitch,
         saveProject,
         loadProjectData,
         

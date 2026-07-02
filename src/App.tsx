@@ -19,7 +19,9 @@ import {
   Activity,
   Save,
   Upload,
-  Loader2
+  Loader2,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 
 const DashboardHeader: React.FC = () => {
@@ -130,13 +132,14 @@ const ComponentsToolbox: React.FC = () => {
     { name: 'Arduino Uno R3', desc: 'Main controller chip', type: 'arduino', icon: <Cpu size={16} />, color: 'var(--accent-blue)' },
     { name: 'L298N H-Bridge', desc: 'DC motor driver chip', type: 'hbridge', icon: <Layers size={16} />, color: 'var(--accent-red)' },
     { name: '9V Battery', desc: 'High-current motor power', type: 'battery', icon: <Battery size={16} />, color: 'var(--text-secondary)' },
-    { name: 'Left DC Motor', desc: 'Left drive wheel actuator', type: 'motorL', icon: <Zap size={16} />, color: 'var(--accent-green)' },
-    { name: 'Right DC Motor', desc: 'Right drive wheel actuator', type: 'motorR', icon: <Zap size={16} />, color: 'var(--accent-green)' },
+    { name: 'DC Motor', desc: 'Drive wheel actuator (position defines L/R side in 3D)', type: 'motor', icon: <Zap size={16} />, color: 'var(--accent-green)' },
     { name: 'HC-SR04 Sonar', desc: 'Ultrasonic rangefinder sensor', type: 'sensor', icon: <Wifi size={16} />, color: 'var(--accent-amber)' },
     { name: 'LED Indicator', desc: 'Basic signal bulb', type: 'led', icon: <Lightbulb size={16} />, color: 'var(--accent-purple)' },
     { name: 'Photoresistor (LDR)', desc: 'Ambient light sensor', type: 'ldr', icon: <Eye size={16} />, color: 'var(--accent-blue)' },
     { name: 'Protoboard / Breadboard', desc: 'Internal multi-connect block', type: 'breadboard', icon: <Grid size={16} />, color: 'var(--accent-blue)' },
-    { name: 'Resistor (220Ω)', desc: 'Current-limiting safety element', type: 'resistor', icon: <Activity size={16} />, color: 'var(--accent-amber)' }
+    { name: 'Resistor (220Ω)', desc: 'Current-limiting safety element', type: 'resistor', icon: <Activity size={16} />, color: 'var(--accent-amber)' },
+    { name: 'SPST Switch', desc: 'Single Pole Single Throw switch', type: 'spst', icon: <ToggleLeft size={16} />, color: 'var(--accent-purple)' },
+    { name: 'SPDT Switch', desc: 'Single Pole Double Throw switch', type: 'spdt', icon: <ToggleRight size={16} />, color: 'var(--accent-amber)' }
   ];
 
   return (

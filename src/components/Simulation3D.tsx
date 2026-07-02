@@ -39,12 +39,12 @@ const MotorWheel: React.FC<{
         <meshStandardMaterial color="#f59e0b" roughness={0.6} />
       </mesh>
       {/* Actuator shaft */}
-      <mesh position={[comp.type === 'motorL' ? -0.05 : 0.05, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+      <mesh position={[comp.x3d < 0 ? -0.05 : 0.05, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.015, 0.015, 0.06, 8]} />
         <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
       </mesh>
       {/* Big driving wheel */}
-      <mesh ref={wheelRef} position={[comp.type === 'motorL' ? -0.08 : 0.08, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+      <mesh ref={wheelRef} position={[comp.x3d < 0 ? -0.08 : 0.08, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
         <cylinderGeometry args={[0.22, 0.22, 0.08, 24]} />
         <meshStandardMaterial color="#0f172a" roughness={0.9} />
         {/* Hubcap visualizer line */}
@@ -56,7 +56,7 @@ const MotorWheel: React.FC<{
       {showLabels && (
         <Html position={[0, 0.26, 0]} center distanceFactor={4}>
           <div style={{ color: 'var(--text-secondary)', fontSize: '8px', background: 'rgba(0,0,0,0.65)', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap' }}>
-            {comp.type === 'motorL' ? 'Motor L' : 'Motor R'} ({speed} RPM)
+            {comp.x3d < 0 ? 'Motor L' : 'Motor R'} ({speed} RPM)
           </div>
         </Html>
       )}
@@ -88,13 +88,14 @@ const RobotModel: React.FC<{ showLabels: boolean }> = ({ showLabels }) => {
       case 'arduino': return [0.3, 0.08, 0.4];
       case 'hbridge': return [0.24, 0.08, 0.22];
       case 'battery': return [0.18, 0.16, 0.14];
-      case 'motorL':
-      case 'motorR': return [0.24, 0.28, 0.28];
+      case 'motor': return [0.24, 0.28, 0.28];
       case 'sensor': return [0.24, 0.12, 0.08];
       case 'led': return [0.1, 0.1, 0.1];
       case 'ldr': return [0.1, 0.04, 0.1];
       case 'breadboard': return [0.52, 0.04, 0.42];
       case 'resistor': return [0.28, 0.06, 0.06];
+      case 'spst': return [0.18, 0.1, 0.14];
+      case 'spdt': return [0.2, 0.1, 0.14];
       default: return [0.2, 0.2, 0.2];
     }
   };
@@ -218,7 +219,7 @@ const RobotModel: React.FC<{ showLabels: boolean }> = ({ showLabels }) => {
               </>
             )}
 
-            {(comp.type === 'motorL' || comp.type === 'motorR') && (
+            {comp.type === 'motor' && (
               <MotorWheel
                 comp={comp}
                 speed={motorPowerStates[comp.id] || 0}
@@ -380,6 +381,58 @@ const RobotModel: React.FC<{ showLabels: boolean }> = ({ showLabels }) => {
                   <Html position={[0, 0.06, 0]} center distanceFactor={4}>
                     <div style={{ color: 'var(--text-secondary)', fontSize: '7px', whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.5)', padding: '1px 3px', borderRadius: '3px' }}>
                       {comp.label}
+                    </div>
+                  </Html>
+                )}
+              </group>
+            )}
+
+            {comp.type === 'spst' && (
+              <group>
+                <mesh castShadow>
+                  <boxGeometry args={[0.16, 0.08, 0.12]} />
+                  <meshStandardMaterial color="#334155" roughness={0.6} />
+                </mesh>
+                <group position={[0, 0.04, 0]} rotation={[comp.state === 'closed' ? 0 : 0.6, 0, 0]}>
+                  <mesh castShadow position={[0, 0.03, 0]}>
+                    <cylinderGeometry args={[0.008, 0.008, 0.06, 8]} />
+                    <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+                  </mesh>
+                  <mesh castShadow position={[0, 0.06, 0]}>
+                    <sphereGeometry args={[0.015, 8, 8]} />
+                    <meshBasicMaterial color="#ef4444" />
+                  </mesh>
+                </group>
+                {showLabels && (
+                  <Html position={[0, 0.15, 0]} center distanceFactor={4}>
+                    <div style={{ color: comp.state === 'closed' ? '#4ade80' : '#f87171', fontSize: '7px', fontWeight: 'bold', whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.65)', padding: '1px 3px', borderRadius: '3px' }}>
+                      {comp.label} ({comp.state === 'closed' ? 'CLOSED' : 'OPEN'})
+                    </div>
+                  </Html>
+                )}
+              </group>
+            )}
+
+            {comp.type === 'spdt' && (
+              <group>
+                <mesh castShadow>
+                  <boxGeometry args={[0.18, 0.08, 0.12]} />
+                  <meshStandardMaterial color="#475569" roughness={0.6} />
+                </mesh>
+                <group position={[0, 0.04, 0]} rotation={[0, 0, comp.state === 'L2' ? 0.5 : -0.5]}>
+                  <mesh castShadow position={[0, 0.03, 0]}>
+                    <cylinderGeometry args={[0.008, 0.008, 0.06, 8]} />
+                    <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+                  </mesh>
+                  <mesh castShadow position={[0, 0.06, 0]}>
+                    <sphereGeometry args={[0.015, 8, 8]} />
+                    <meshBasicMaterial color="#fbbf24" />
+                  </mesh>
+                </group>
+                {showLabels && (
+                  <Html position={[0, 0.15, 0]} center distanceFactor={4}>
+                    <div style={{ color: '#38bdf8', fontSize: '7px', fontWeight: 'bold', whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.65)', padding: '1px 3px', borderRadius: '3px' }}>
+                      {comp.label} ({comp.state === 'L2' ? 'COM➔L2' : 'COM➔L1'})
                     </div>
                   </Html>
                 )}
