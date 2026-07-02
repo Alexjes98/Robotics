@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSimulator, CODE_TEMPLATES } from '../hooks/useSimulator';
 import { Play, Square, Code, Terminal, RotateCcw } from 'lucide-react';
+import { Resizer } from './Resizer';
 
 export const CodeEditor: React.FC = () => {
   const {
@@ -17,6 +18,7 @@ export const CodeEditor: React.FC = () => {
 
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
+  const [serialHeight, setSerialHeight] = useState<number>(140);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (lineNumbersRef.current) {
@@ -151,8 +153,16 @@ export const CodeEditor: React.FC = () => {
           />
         </div>
 
+        {/* Vertical Resizer above Serial Monitor */}
+        <Resizer
+          type="row"
+          onResize={(deltaY) => {
+            setSerialHeight((prev) => Math.max(60, Math.min(600, prev - deltaY)));
+          }}
+        />
+
         {/* Serial Monitor console */}
-        <div className="serial-monitor">
+        <div className="serial-monitor" style={{ height: `${serialHeight}px`, flexShrink: 0 }}>
           <div style={{
             padding: '6px 14px',
             borderBottom: '1px solid var(--border-light)',

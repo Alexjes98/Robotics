@@ -124,17 +124,11 @@ body {
 
 /* Main Dashboard Panel Split */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: 280px 1fr 340px;
+  display: flex;
+  flex-direction: row;
   height: calc(100vh - var(--header-height));
   width: 100vw;
   overflow: hidden;
-}
-
-@media (max-width: 1200px) {
-  .dashboard-grid {
-    grid-template-columns: 240px 1fr 300px;
-  }
 }
 
 /* Side Panels */
@@ -181,22 +175,25 @@ body {
 
 /* 2D Canvas Workspace */
 .center-workspace {
-  display: grid;
-  grid-template-rows: 1fr 320px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   position: relative;
   background-color: var(--bg-dark);
+  flex: 1;
+  overflow: hidden;
 }
 
 .workspace-2d {
   position: relative;
-  overflow: auto;
+  overflow: hidden;
   outline: none;
   background:
     radial-gradient(rgba(255, 255, 255, 0.015) 8%, transparent 8%),
     radial-gradient(rgba(255, 255, 255, 0.01) 8%, transparent 8%);
   background-size: 24px 24px;
   background-position: 0 0, 12px 12px;
+  flex: 1;
 }
 
 /* 3D Simulation Panel */
@@ -204,8 +201,8 @@ body {
   position: relative;
   border-top: 1px solid var(--border-light);
   background: #090a0d;
-  height: 100%;
   width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -747,4 +744,90 @@ dialog::backdrop {
 
 .step-text {
   font-family: var(--font-mono);
+}
+
+/* Resizer bars */
+.resizer-col {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  margin-left: -3px;
+  margin-right: -3px;
+  flex-shrink: 0;
+}
+
+.resizer-col::before {
+  content: '';
+  width: 1px;
+  height: 100%;
+  background: var(--border-light);
+  transition: all 0.2s ease;
+}
+
+.resizer-col:hover::before,
+body.is-resizing .resizer-col::before {
+  width: 2px;
+  background: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue);
+}
+
+.resizer-col:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.resizer-row {
+  height: 6px;
+  cursor: row-resize;
+  background: transparent;
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  margin-top: -3px;
+  margin-bottom: -3px;
+  flex-shrink: 0;
+}
+
+.resizer-row::before {
+  content: '';
+  width: 100%;
+  height: 1px;
+  background: var(--border-light);
+  transition: all 0.2s ease;
+}
+
+.resizer-row:hover::before,
+body.is-resizing .resizer-row::before {
+  height: 2px;
+  background: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue);
+}
+
+.resizer-row:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+/* Global utility during dragging */
+body.is-resizing * {
+  user-select: none !important;
+  cursor: inherit !important;
+}
+
+body.is-resizing canvas,
+body.is-resizing svg,
+body.is-resizing textarea,
+body.is-resizing select,
+body.is-resizing iframe {
+  pointer-events: none !important;
 }
