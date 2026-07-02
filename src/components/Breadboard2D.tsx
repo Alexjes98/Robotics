@@ -116,6 +116,16 @@ export const Breadboard2D: React.FC = () => {
   // Keyboard space-bar listeners for panning
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       if (e.code === 'Space') {
         // Prevent default spacebar scrolling
         e.preventDefault();
@@ -125,6 +135,16 @@ export const Breadboard2D: React.FC = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       if (e.code === 'Space') {
         setIsSpacePressed(false);
       }

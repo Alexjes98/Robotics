@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSimulator, CODE_TEMPLATES } from '../hooks/useSimulator';
-import { Play, Square, Code, Terminal, RotateCcw } from 'lucide-react';
+import { Play, Square, Code, Terminal, RotateCcw, Plus } from 'lucide-react';
 import { Resizer } from './Resizer';
 
 export const CodeEditor: React.FC = () => {
@@ -19,6 +19,21 @@ export const CodeEditor: React.FC = () => {
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
   const [serialHeight, setSerialHeight] = useState<number>(140);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const tabString = '  ';
+      const newCode = code.substring(0, start) + tabString + code.substring(end);
+      setCode(newCode);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + tabString.length;
+      }, 0);
+    }
+  };
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (lineNumbersRef.current) {
@@ -74,10 +89,22 @@ export const CodeEditor: React.FC = () => {
             }}
             disabled={isRunning}
           >
+            <option value="new">New (Empty Sketch)</option>
             <option value="blink">Blink LED</option>
             <option value="obstacleAvoidance">Obstacle Avoiding Robot</option>
             <option value="lightSensitive">Light Activated Motor</option>
           </select>
+
+          <button
+            onClick={() => loadTemplate('new')}
+            className="btn btn-outline btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px' }}
+            disabled={isRunning}
+            title="Create new empty sketch"
+          >
+            <Plus size={12} />
+            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>NEW</span>
+          </button>
 
           <button
             onClick={() => loadTemplate(selectedTemplate === 'custom' ? 'blink' : (selectedTemplate as any))}
@@ -137,6 +164,7 @@ export const CodeEditor: React.FC = () => {
           <textarea
             value={code}
             onChange={(e) => setCode(e.target.value)}
+            onKeyDown={handleKeyDown}
             onScroll={handleScroll}
             className="code-editor-textarea"
             spellCheck="false"

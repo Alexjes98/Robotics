@@ -305,6 +305,16 @@ export const INITIAL_COMPONENTS: RoboticComponent[] = [
 
 // --- Templates ---
 export const CODE_TEMPLATES = {
+  new: `// Clean sketch
+void setup() {
+  // put your setup code here, to run once:
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+}`,
   blink: `// Template: Blink LED
 int ledPin = 13; // Connected to D13
 
