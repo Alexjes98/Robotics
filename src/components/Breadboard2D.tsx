@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSimulator, type RoboticComponent } from '../hooks/useSimulator';
 import { Trash2 } from 'lucide-react';
 
@@ -47,6 +47,7 @@ const getLedColors = (colorName?: string, isBlown?: boolean, isPowered?: boolean
 export const Breadboard2D: React.FC = () => {
   const {
     components,
+    setComponents,
     wires,
     activeWireColor,
     addWire,
@@ -79,6 +80,19 @@ export const Breadboard2D: React.FC = () => {
   const [draggedCompId, setDraggedCompId] = useState<string | null>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const hasDraggedRef = useRef<boolean>(false);
+
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [clipboard, setClipboard] = useState<RoboticComponent[]>([]);
+
+  // Marquee (rubber-band) selection state
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const marqueeStart = useRef<{ x: number; y: number } | null>(null);
+  const isMarqueeingRef = useRef<boolean>(false);
+  // Prevents the click event that fires right after mouseup from clearing a freshly completed marquee selection
+  const justMarqueedRef = useRef<boolean>(false);
+  // Track whether a component was clicked at mousedown so we skip marquee
+  const clickedCompRef = useRef<boolean>(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -113,7 +127,40 @@ export const Breadboard2D: React.FC = () => {
     };
   };
 
-  // Keyboard space-bar listeners for panning
+  // Delete selected components (shared logic)
+  const deleteSelected = useCallback(() => {
+    selectedIds.forEach(id => deleteComponent(id));
+    setSelectedIds(new Set());
+  }, [selectedIds, deleteComponent]);
+
+  // Copy selected components to clipboard
+  const copySelected = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const copied = components.filter(c => selectedIds.has(c.id));
+    setClipboard(copied);
+  }, [selectedIds, components]);
+
+  // Paste clipboard components with offset
+  const pasteClipboard = useCallback(() => {
+    if (clipboard.length === 0) return;
+    const newComps: RoboticComponent[] = clipboard.map(orig => ({
+      ...orig,
+      id: `${orig.type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      x: orig.x + 30,
+      y: orig.y + 30,
+    }));
+    newComps.forEach(c => {
+      // Use setComponents from context by adding one at a time via addComponent won't work,
+      // so we directly inject via setComponents from useSimulator
+      setComponents((prev: RoboticComponent[]) => [...prev, c]);
+    });
+    // Select the newly pasted components
+    setSelectedIds(new Set(newComps.map(c => c.id)));
+    // Update clipboard so subsequent pastes stack the offset
+    setClipboard(newComps);
+  }, [clipboard, setComponents]);
+
+  // Keyboard space-bar listeners for panning + selection shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -127,11 +174,32 @@ export const Breadboard2D: React.FC = () => {
         return;
       }
       if (e.code === 'Space') {
-        // Prevent default spacebar scrolling
         e.preventDefault();
         setIsSpacePressed(true);
       }
-      if (e.key === 'Escape') setSelectedPin(null);
+      if (e.key === 'Escape') {
+        setSelectedPin(null);
+        setSelectedIds(new Set());
+      }
+      // Cmd+Delete (macOS) or Ctrl+Backspace/Delete — delete selected components
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
+        e.preventDefault();
+        deleteSelected();
+      }
+      // Cmd+C — copy
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        copySelected();
+      }
+      // Cmd+V — paste
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteClipboard();
+      }
+      // Select all: Cmd+A
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault();
+        setSelectedIds(new Set(components.map(c => c.id)));
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -156,7 +224,7 @@ export const Breadboard2D: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [deleteSelected, copySelected, pasteClipboard, components]);
 
   // Attach non-passive wheel listener directly to SVG for zoom control
   useEffect(() => {
@@ -179,16 +247,35 @@ export const Breadboard2D: React.FC = () => {
     };
   }, []);
 
-  // Handle SVG Mouse Down (Start Pan)
+  // Handle SVG Mouse Down (Start Pan or Marquee)
   const handleSVGMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isSpacePressed) {
       setIsPanning(true);
       panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       e.preventDefault();
+      return;
+    }
+    // Start marquee selection only if we didn't click a component
+    if (!clickedCompRef.current && !isRunning) {
+      const coords = getSVGCoords(e.clientX, e.clientY);
+      marqueeStart.current = coords;
+      isMarqueeingRef.current = false;
     }
   };
 
-  // Handle Canvas Mouse Move (for panning, wire previews, and dragging components)
+  // Handle SVG click on blank canvas → deselect all
+  const handleSVGClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Consume the phantom click that fires right after a completed marquee drag
+    if (justMarqueedRef.current) {
+      justMarqueedRef.current = false;
+      return;
+    }
+    if (e.target === e.currentTarget || (e.target as SVGElement).tagName === 'rect') {
+      setSelectedIds(new Set());
+    }
+  };
+
+  // Handle Canvas Mouse Move (for panning, wire previews, dragging, and marquee)
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPanning) {
       setPan({
@@ -206,17 +293,52 @@ export const Breadboard2D: React.FC = () => {
       const newY = Math.round(coords.y - dragOffset.current.y);
       updateComponentPosition(draggedCompId, newX, newY);
       hasDraggedRef.current = true;
+      return;
+    }
+
+    // Update marquee selection rectangle
+    if (marqueeStart.current && !clickedCompRef.current) {
+      const sx = marqueeStart.current.x;
+      const sy = marqueeStart.current.y;
+      const dx = coords.x - sx;
+      const dy = coords.y - sy;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        isMarqueeingRef.current = true;
+        setMarquee({
+          x: Math.min(sx, coords.x),
+          y: Math.min(sy, coords.y),
+          w: Math.abs(dx),
+          h: Math.abs(dy),
+        });
+      }
     }
   };
 
-  // Handle Drag Start
+  // Handle Drag Start on a component
   const handleCompMouseDown = (compId: string, e: React.MouseEvent) => {
-    if (isRunning || isSpacePressed) return; // Prevent dragging component if spacebar is down
+    if (isRunning || isSpacePressed) return;
     e.stopPropagation();
-    
+    clickedCompRef.current = true;
+
     const comp = components.find(c => c.id === compId);
     if (!comp) return;
-    
+
+    // Selection logic on mousedown
+    if (e.metaKey || e.ctrlKey) {
+      // Toggle this component in/out of selection
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(compId)) next.delete(compId);
+        else next.add(compId);
+        return next;
+      });
+    } else {
+      // If clicking a non-selected component, select only it and allow drag
+      if (!selectedIds.has(compId)) {
+        setSelectedIds(new Set([compId]));
+      }
+    }
+
     const coords = getSVGCoords(e.clientX, e.clientY);
     dragOffset.current = {
       x: coords.x - comp.x,
@@ -226,9 +348,37 @@ export const Breadboard2D: React.FC = () => {
     hasDraggedRef.current = false;
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     setIsPanning(false);
     setDraggedCompId(null);
+
+    // Finalize marquee selection
+    if (isMarqueeingRef.current && marquee) {
+      const mr = marquee;
+      const inMarquee = components.filter(c =>
+        c.x + c.width  > mr.x &&
+        c.x            < mr.x + mr.w &&
+        c.y + c.height > mr.y &&
+        c.y            < mr.y + mr.h
+      );
+      if (e.metaKey || e.ctrlKey) {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          inMarquee.forEach(c => next.add(c.id));
+          return next;
+        });
+      } else {
+        setSelectedIds(new Set(inMarquee.map(c => c.id)));
+      }
+      // Signal to the follow-up click event that it should NOT deselect
+      justMarqueedRef.current = true;
+    }
+
+    // Reset marquee
+    setMarquee(null);
+    marqueeStart.current = null;
+    isMarqueeingRef.current = false;
+    clickedCompRef.current = false;
   };
 
   const handleComponentClick = (comp: RoboticComponent, e: React.MouseEvent) => {
@@ -237,8 +387,15 @@ export const Breadboard2D: React.FC = () => {
       hasDraggedRef.current = false;
       return;
     }
-    if (comp.type === 'spst' || comp.type === 'spdt') {
-      toggleSwitch(comp.id);
+    // Toggle switches on click (if not multiselecting)
+    if (!e.metaKey && !e.ctrlKey) {
+      if (comp.type === 'spst' || comp.type === 'spdt') {
+        toggleSwitch(comp.id);
+      }
+    }
+    // Select this single component if not using meta key
+    if (!e.metaKey && !e.ctrlKey) {
+      setSelectedIds(new Set([comp.id]));
     }
   };
 
@@ -342,7 +499,7 @@ export const Breadboard2D: React.FC = () => {
       <div className="workspace-2d" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {/* Overlay info */}
         <div className="workspace-overlay-info">
-          <span>💡 Hold [SPACE] and drag to move canvas. Scroll to zoom. Click toolbox to place components.</span>
+          <span>💡 Hold [SPACE] + drag to pan. Scroll to zoom. Click to select. Drag to multi-select. ⌘+Del to delete · ⌘C/V to copy-paste.</span>
         </div>
 
         {/* Floating Zoom Controls HUD */}
@@ -469,73 +626,31 @@ export const Breadboard2D: React.FC = () => {
           onMouseDown={handleSVGMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onClick={handleSVGClick}
           style={{ display: 'block', background: '#0d0f13', cursor: getCanvasCursor() }}
         >
-          {/* Grid lines patterns */}
+          {/* Grid lines patterns + Wire glow filter */}
           <defs>
             <pattern id="dot-grid" width="20" height="20" patternUnits="userSpaceOnUse">
               <circle cx="2" cy="2" r="1.2" fill="#1e293b" />
             </pattern>
+            <filter id="wire-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="wire-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodOpacity="0.6" />
+            </filter>
           </defs>
           <rect width="100%" height="100%" fill="url(#dot-grid)" />
 
           {/* Render Zoomed and Panned Canvas Contents */}
           <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-            
-            {/* Render Wire Connections */}
-            {wires.map(wire => {
-              const start = getPinCoords(wire.from.componentId, wire.from.pinName);
-              const end = getPinCoords(wire.to.componentId, wire.to.pinName);
-              
-              return (
-                <g key={wire.id} className="wire-group">
-                  <path
-                    d={getWirePath(start.x, start.y, end.x, end.y)}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth="10"
-                    style={{ cursor: isRunning ? 'default' : 'pointer' }}
-                    onClick={() => !isRunning && deleteWire(wire.id)}
-                  />
-                  <path
-                    d={getWirePath(start.x, start.y, end.x, end.y)}
-                    fill="none"
-                    stroke={wire.color}
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {isRunning && (
-                    <circle r="3" fill="#ffffff">
-                      <animateMotion
-                        dur="1.5s"
-                        repeatCount="indefinite"
-                        path={getWirePath(start.x, start.y, end.x, end.y)}
-                      />
-                    </circle>
-                  )}
-                </g>
-              );
-            })}
 
-            {/* Live Wire Drawing Preview */}
-            {selectedPin && (
-              <path
-                d={getWirePath(
-                  getPinCoords(selectedPin.componentId, selectedPin.pinName).x,
-                  getPinCoords(selectedPin.componentId, selectedPin.pinName).y,
-                  mousePos.x,
-                  mousePos.y
-                )}
-                fill="none"
-                stroke={activeWireColor}
-                strokeWidth="2"
-                strokeDasharray="4 4"
-                style={{ pointerEvents: 'none' }}
-              />
-            )}
-
-            {/* Render Components */}
+            {/* Render Components FIRST (so wires paint on top) */}
             {components.map(comp => {
               let headerColor = '#1e3a8a';
               let bodyColor = '#172554';
@@ -575,6 +690,7 @@ export const Breadboard2D: React.FC = () => {
                 strokeColor = 'rgba(203, 213, 225, 0.4)';
               }
 
+              const isSelected = selectedIds.has(comp.id);
               return (
                 <g
                   key={comp.id}
@@ -594,14 +710,30 @@ export const Breadboard2D: React.FC = () => {
                     filter="blur(4px)"
                   />
 
+                  {/* Selection highlight */}
+                  {isSelected && (
+                    <rect
+                      x="-4"
+                      y="-4"
+                      width={comp.width + 8}
+                      height={comp.height + 8}
+                      rx="10"
+                      fill="rgba(59, 130, 246, 0.18)"
+                      stroke="rgba(59, 130, 246, 0.85)"
+                      strokeWidth="2"
+                      strokeDasharray="5 3"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  )}
+
                   {/* Component Base Box */}
                   <rect
                     width={comp.width}
                     height={comp.height}
                     rx="8"
                     fill={bodyColor}
-                    stroke={strokeColor}
-                    strokeWidth="1.5"
+                    stroke={isSelected ? 'rgba(59, 130, 246, 0.8)' : strokeColor}
+                    strokeWidth={isSelected ? '2' : '1.5'}
                   />
 
                   {/* Header Strip */}
@@ -633,20 +765,28 @@ export const Breadboard2D: React.FC = () => {
                     {comp.label}
                   </text>
 
-                  {/* Component Deletion Button (X) */}
-                  {!isRunning && (
-                    <g
-                      transform={`translate(${comp.width - 18}, 4)`}
-                      style={{ cursor: 'pointer' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteComponent(comp.id);
-                      }}
-                    >
-                      <title>{`Delete ${comp.label}`}</title>
-                      <circle r="7" fill="rgba(239, 68, 68, 0.95)" />
-                      <line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                      <line x1="3.5" y1="-3.5" x2="-3.5" y2="3.5" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+                  {/* Selection badge: shows ⌘+Del hint when selected */}
+                  {isSelected && !isRunning && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect
+                        x={comp.width - 54}
+                        y="-18"
+                        width="58"
+                        height="16"
+                        rx="4"
+                        fill="rgba(59,130,246,0.9)"
+                      />
+                      <text
+                        x={comp.width - 25}
+                        y="-7"
+                        fill="#ffffff"
+                        fontSize="8"
+                        fontWeight="600"
+                        fontFamily="var(--font-mono)"
+                        textAnchor="middle"
+                      >
+                        ⌘+DEL to delete
+                      </text>
                     </g>
                   )}
 
@@ -912,6 +1052,128 @@ export const Breadboard2D: React.FC = () => {
                 </g>
               );
             })}
+
+            {/* Marquee selection rectangle */}
+            {marquee && (
+              <rect
+                x={marquee.x}
+                y={marquee.y}
+                width={marquee.w}
+                height={marquee.h}
+                fill="rgba(59, 130, 246, 0.08)"
+                stroke="rgba(59, 130, 246, 0.7)"
+                strokeWidth={1 / zoom}
+                strokeDasharray={`${4 / zoom} ${3 / zoom}`}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+
+            {/* Render Wire Connections ON TOP of components */}
+            {wires.map(wire => {
+              const start = getPinCoords(wire.from.componentId, wire.from.pinName);
+              const end = getPinCoords(wire.to.componentId, wire.to.pinName);
+              const wirePath = getWirePath(start.x, start.y, end.x, end.y);
+
+              return (
+                <g key={wire.id} className="wire-group">
+                  {/* Wide transparent hit area for click-to-delete */}
+                  <path
+                    d={wirePath}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth="12"
+                    style={{ cursor: isRunning ? 'default' : 'pointer' }}
+                    onClick={() => !isRunning && deleteWire(wire.id)}
+                  />
+                  {/* Dark outline for contrast against bright components */}
+                  <path
+                    d={wirePath}
+                    fill="none"
+                    stroke="rgba(0,0,0,0.6)"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Colored wire with glow filter */}
+                  <path
+                    d={wirePath}
+                    fill="none"
+                    stroke={wire.color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    filter="url(#wire-glow)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Terminal dot at start pin */}
+                  <circle
+                    cx={start.x}
+                    cy={start.y}
+                    r="4"
+                    fill={wire.color}
+                    stroke="rgba(0,0,0,0.7)"
+                    strokeWidth="1.5"
+                    filter="url(#wire-shadow)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Terminal dot at end pin */}
+                  <circle
+                    cx={end.x}
+                    cy={end.y}
+                    r="4"
+                    fill={wire.color}
+                    stroke="rgba(0,0,0,0.7)"
+                    strokeWidth="1.5"
+                    filter="url(#wire-shadow)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Animated current particle during simulation */}
+                  {isRunning && (
+                    <circle r="3.5" fill="#ffffff" style={{ pointerEvents: 'none' }}>
+                      <animateMotion
+                        dur="1.5s"
+                        repeatCount="indefinite"
+                        path={wirePath}
+                      />
+                    </circle>
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Live Wire Drawing Preview (always on top) */}
+            {selectedPin && (
+              <g style={{ pointerEvents: 'none' }}>
+                {/* Outline */}
+                <path
+                  d={getWirePath(
+                    getPinCoords(selectedPin.componentId, selectedPin.pinName).x,
+                    getPinCoords(selectedPin.componentId, selectedPin.pinName).y,
+                    mousePos.x,
+                    mousePos.y
+                  )}
+                  fill="none"
+                  stroke="rgba(0,0,0,0.5)"
+                  strokeWidth="4"
+                  strokeDasharray="6 4"
+                  strokeLinecap="round"
+                />
+                {/* Colored dashed preview */}
+                <path
+                  d={getWirePath(
+                    getPinCoords(selectedPin.componentId, selectedPin.pinName).x,
+                    getPinCoords(selectedPin.componentId, selectedPin.pinName).y,
+                    mousePos.x,
+                    mousePos.y
+                  )}
+                  fill="none"
+                  stroke={activeWireColor}
+                  strokeWidth="2.5"
+                  strokeDasharray="6 4"
+                  strokeLinecap="round"
+                  filter="url(#wire-glow)"
+                />
+              </g>
+            )}
           </g>
         </svg>
       </div>
