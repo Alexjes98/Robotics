@@ -24,7 +24,10 @@ import {
   ToggleLeft,
   ToggleRight,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Sun,
+  Moon,
+  CircleDot
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -33,7 +36,7 @@ interface HeaderProps {
 }
 
 const DashboardHeader: React.FC<HeaderProps> = ({ sidebarOpen, setSidebarOpen }) => {
-  const { isRunning, startSimulation, stopSimulation, saveProject, loadProjectData } = useSimulator();
+  const { isRunning, startSimulation, stopSimulation, saveProject, loadProjectData, theme, toggleTheme } = useSimulator();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -79,6 +82,17 @@ const DashboardHeader: React.FC<HeaderProps> = ({ sidebarOpen, setSidebarOpen })
 
       {/* Simulation status indicator and run actions */}
       <div className="header-controls">
+        {/* Theme switcher */}
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={toggleTheme}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          title={theme === 'dark' ? "Switch to Light Theme" : "Switch to Dark Theme"}
+        >
+          {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          {theme === 'dark' ? 'LIGHT' : 'DARK'}
+        </button>
+
         {/* Project Load / Save actions */}
         <button 
           className="btn btn-outline btn-sm" 
@@ -163,7 +177,12 @@ const ComponentsToolbox: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     { name: 'Protoboard / Breadboard', desc: 'Internal multi-connect block', type: 'breadboard', icon: <Grid size={16} />, color: 'var(--accent-blue)' },
     { name: 'Resistor (220Ω)', desc: 'Current-limiting safety element', type: 'resistor', icon: <Activity size={16} />, color: 'var(--accent-amber)' },
     { name: 'SPST Switch', desc: 'Single Pole Single Throw switch', type: 'spst', icon: <ToggleLeft size={16} />, color: 'var(--accent-purple)' },
-    { name: 'SPDT Switch', desc: 'Single Pole Double Throw switch', type: 'spdt', icon: <ToggleRight size={16} />, color: 'var(--accent-amber)' }
+    { name: 'SPDT Switch', desc: 'Single Pole Double Throw switch', type: 'spdt', icon: <ToggleRight size={16} />, color: 'var(--accent-amber)' },
+    { name: 'L293D H-Bridge IC', desc: '16-pin dual H-bridge motor driver DIP IC', type: 'l293d', icon: <Layers size={16} />, color: 'var(--accent-red)' },
+    { name: 'Push Button', desc: 'Tactile momentary push button', type: 'button', icon: <Square size={16} />, color: 'var(--accent-blue)' },
+    { name: 'Potentiometer', desc: 'Rotary variable resistor / voltage divider', type: 'potentiometer', icon: <Activity size={16} />, color: 'var(--accent-amber)' },
+    { name: 'Oscilloscope', desc: 'Dual-channel live waveform monitor', type: 'oscilloscope', icon: <Activity size={16} />, color: 'var(--accent-green)' },
+    { name: 'Attachable Wheel', desc: 'Wheel unit attachable to DC motor shaft', type: 'wheel', icon: <CircleDot size={16} />, color: 'var(--accent-purple)' }
   ];
 
   return (

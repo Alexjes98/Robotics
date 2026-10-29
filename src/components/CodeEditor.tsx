@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useSimulator, CODE_TEMPLATES } from '../hooks/useSimulator';
 import { Play, Square, Code, Terminal, RotateCcw, Plus } from 'lucide-react';
 import { Resizer } from './Resizer';
+import { highlightArduinoCode } from '../utils/codeHighlighter';
 
 export const CodeEditor: React.FC = () => {
   const {
@@ -18,7 +19,10 @@ export const CodeEditor: React.FC = () => {
 
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
+  const highlightRef = useRef<HTMLPreElement | null>(null);
   const [serialHeight, setSerialHeight] = useState<number>(140);
+
+  const highlightedHtml = useMemo(() => highlightArduinoCode(code), [code]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab') {
@@ -38,6 +42,10 @@ export const CodeEditor: React.FC = () => {
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+      highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   };
 
@@ -139,9 +147,10 @@ export const CodeEditor: React.FC = () => {
           {/* Line Numbers Column */}
           <div 
             ref={lineNumbersRef}
+            className="editor-line-numbers"
             style={{
               width: '36px',
-              backgroundColor: '#090a0d',
+              backgroundColor: 'var(--bg-editor-gutter, #090a0d)',
               borderRight: '1px solid var(--border-light)',
               color: 'var(--text-muted)',
               fontFamily: 'var(--font-mono)',
@@ -152,7 +161,8 @@ export const CodeEditor: React.FC = () => {
               userSelect: 'none',
               lineHeight: '1.5em',
               overflow: 'hidden',
-              height: '100%'
+              height: '100%',
+              flexShrink: 0
             }}
           >
             {Array.from({ length: lineCount }).map((_, i) => (
@@ -160,25 +170,66 @@ export const CodeEditor: React.FC = () => {
             ))}
           </div>
 
-          {/* Text Area */}
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onScroll={handleScroll}
-            className="code-editor-textarea"
-            spellCheck="false"
-            style={{
-              padding: '16px 12px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.8rem',
-              lineHeight: '1.5em',
-              flex: 1,
-              overflowY: 'auto'
-            }}
-            placeholder="// Write your Arduino sketch here..."
-            disabled={isRunning}
-          />
+          {/* Highlighted pre & transparent textarea overlay */}
+          <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden' }}>
+            <pre
+              ref={highlightRef}
+              aria-hidden="true"
+              className="code-highlight-pre"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                margin: 0,
+                padding: '16px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8rem',
+                lineHeight: '1.5em',
+                pointerEvents: 'none',
+                overflow: 'hidden',
+                whiteSpace: 'pre',
+                wordWrap: 'normal',
+                tabSize: 2,
+                boxSizing: 'border-box',
+                color: 'var(--text-primary)'
+              }}
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onScroll={handleScroll}
+              className="code-editor-textarea"
+              spellCheck="false"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                padding: '16px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8rem',
+                lineHeight: '1.5em',
+                background: 'transparent',
+                color: 'transparent',
+                caretColor: 'var(--accent-blue)',
+                overflowY: 'auto',
+                whiteSpace: 'pre',
+                wordWrap: 'normal',
+                tabSize: 2,
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                boxSizing: 'border-box'
+              }}
+              placeholder="// Write your Arduino sketch here..."
+              disabled={isRunning}
+            />
+          </div>
         </div>
 
         {/* Vertical Resizer above Serial Monitor */}

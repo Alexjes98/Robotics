@@ -10,6 +10,7 @@
   --bg-dark: #0d0f13;
   --bg-panel: #14171d;
   --bg-card: rgba(20, 23, 29, 0.75);
+  --bg-editor-gutter: #090a0d;
 
   --border-light: rgba(255, 255, 255, 0.06);
   --border-glow: rgba(56, 189, 248, 0.3);
@@ -21,25 +22,47 @@
 
   /* Accent Colors */
   --accent-blue: #38bdf8;
-  /* Primary Electric Blue */
   --accent-blue-glow: rgba(56, 189, 248, 0.15);
 
   --accent-green: #34d399;
-  /* Running/Signal Green */
   --accent-green-glow: rgba(52, 211, 153, 0.2);
 
   --accent-amber: #fbbf24;
-  /* Warning/Sensor yellow */
 
   --accent-red: #ef4444;
-  /* Error/Stop/VCC Red */
   --accent-red-glow: rgba(239, 68, 68, 0.2);
 
   --accent-purple: #a78bfa;
-  /* Chip / Serial purple */
 
   /* Dimensions */
   --header-height: 56px;
+}
+
+[data-theme="light"] {
+  --bg-darker: #f8fafc;
+  --bg-dark: #f1f5f9;
+  --bg-panel: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-editor-gutter: #f8fafc;
+
+  --border-light: rgba(0, 0, 0, 0.1);
+  --border-glow: rgba(2, 132, 199, 0.3);
+  --border-danger: rgba(239, 68, 68, 0.3);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --accent-blue: #0284c7;
+  --accent-blue-glow: rgba(2, 132, 199, 0.12);
+
+  --accent-green: #059669;
+  --accent-green-glow: rgba(5, 150, 105, 0.15);
+
+  --accent-amber: #d97706;
+  --accent-red: #dc2626;
+  --accent-red-glow: rgba(220, 38, 38, 0.15);
+  --accent-purple: #7c3aed;
 }
 
 * {
@@ -303,7 +326,8 @@ body {
   width: 100%;
   height: 100%;
   background: transparent;
-  color: var(--text-primary);
+  color: transparent;
+  caret-color: var(--accent-blue);
   border: none;
   resize: none;
   outline: none;
@@ -312,6 +336,77 @@ body {
   tab-size: 2;
   white-space: pre;
 }
+
+.code-editor-textarea::selection {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+/* Code Syntax Highlighter Tokens */
+.token-comment { color: #6b7280; font-style: italic; }
+.token-string { color: #34d399; }
+.token-preprocessor { color: #f43f5e; font-weight: 500; }
+.token-number { color: #c084fc; }
+.token-constant { color: #fbbf24; font-weight: 600; }
+.token-keyword { color: #f43f5e; font-weight: 600; }
+.token-builtin { color: #38bdf8; font-weight: 500; }
+.token-func { color: #60a5fa; }
+
+/* Light Theme Overrides */
+[data-theme="light"] body {
+  background-color: var(--bg-darker);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .app-container {
+  background-color: var(--bg-darker);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(2, 132, 199, 0.04) 0%, transparent 80%),
+    linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+}
+
+[data-theme="light"] .app-header {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border-light);
+}
+
+[data-theme="light"] .side-panel {
+  background: var(--bg-panel);
+}
+
+[data-theme="light"] .code-textarea-wrapper {
+  background: #ffffff;
+}
+
+[data-theme="light"] .serial-monitor {
+  background: #f8fafc;
+  border-top: 1px solid var(--border-light);
+}
+
+[data-theme="light"] .serial-logs {
+  color: #047857;
+  background: radial-gradient(rgba(5, 150, 105, 0.05) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+[data-theme="light"] .btn-outline {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .btn-outline:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .token-comment { color: #94a3b8; font-style: italic; }
+[data-theme="light"] .token-string { color: #059669; }
+[data-theme="light"] .token-preprocessor { color: #dc2626; }
+[data-theme="light"] .token-number { color: #7c3aed; }
+[data-theme="light"] .token-constant { color: #b45309; }
+[data-theme="light"] .token-keyword { color: #e11d48; }
+[data-theme="light"] .token-builtin { color: #0284c7; }
+[data-theme="light"] .token-func { color: #2563eb; }
 
 /* Serial Monitor Terminal styling */
 .serial-monitor {

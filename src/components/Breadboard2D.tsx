@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSimulator, type RoboticComponent } from '../hooks/useSimulator';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Sparkles } from 'lucide-react';
 
 const getLedColors = (colorName?: string, isBlown?: boolean, isPowered?: boolean) => {
   if (isBlown) return { fill: '#334155', stroke: '#1e293b', glow: 'none' };
@@ -62,8 +62,31 @@ export const Breadboard2D: React.FC = () => {
     ledPowerStates,
     motorPowerStates,
     setActiveWireColor,
-    toggleSwitch
+    toggleSwitch,
+    updateComponentLabel,
+    reorganizeWires,
+    setButtonState,
+    setPotValue,
+    attachWheelToMotor,
+    oscilloscopeData
   } = useSimulator();
+
+  // Component label editing state
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [tempLabel, setTempLabel] = useState<string>('');
+
+  const startEditingLabel = (comp: RoboticComponent, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingLabelId(comp.id);
+    setTempLabel(comp.label);
+  };
+
+  const commitLabelEdit = (id: string) => {
+    if (tempLabel.trim()) {
+      updateComponentLabel(id, tempLabel.trim());
+    }
+    setEditingLabelId(null);
+  };
 
   // Canvas Pan & Zoom state
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -350,6 +373,17 @@ export const Breadboard2D: React.FC = () => {
 
   const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     setIsPanning(false);
+
+    if (draggedCompId) {
+      const dragged = components.find(c => c.id === draggedCompId);
+      if (dragged && dragged.type === 'wheel') {
+        const motor = components.find(c => c.type === 'motor' && Math.hypot((c.x + c.width / 2) - (dragged.x + dragged.width / 2), (c.y + c.height / 2) - (dragged.y + dragged.height / 2)) < 90);
+        if (motor) {
+          attachWheelToMotor(dragged.id, motor.id);
+        }
+      }
+    }
+
     setDraggedCompId(null);
 
     // Finalize marquee selection
@@ -391,6 +425,15 @@ export const Breadboard2D: React.FC = () => {
     if (!e.metaKey && !e.ctrlKey) {
       if (comp.type === 'spst' || comp.type === 'spdt') {
         toggleSwitch(comp.id);
+      } else if (comp.type === 'button') {
+        toggleSwitch(comp.id);
+      } else if (comp.type === 'wheel') {
+        if (comp.attachedMotorId) {
+          attachWheelToMotor(comp.id, null);
+        } else {
+          const nearestMotor = components.find(c => c.type === 'motor');
+          if (nearestMotor) attachWheelToMotor(comp.id, nearestMotor.id);
+        }
       }
     }
     // Select this single component if not using meta key
@@ -416,17 +459,30 @@ export const Breadboard2D: React.FC = () => {
     }
   };
 
-  // Compute Bezier control points for curved wires
-  const getWirePath = (x1: number, y1: number, x2: number, y2: number) => {
-    const dx = Math.abs(x2 - x1);
-    const dy = Math.abs(y2 - y1);
-    const midY = (y1 + y2) / 2;
-    const midX = (x1 + x2) / 2;
+  // Group wires by pair for smart anti-overlap fanning
+  const wirePairCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    wires.forEach(w => {
+      const pairKey = [w.from.componentId, w.to.componentId].sort().join('__');
+      counts[pairKey] = (counts[pairKey] || 0) + 1;
+    });
+    return counts;
+  }, [wires]);
 
-    if (dy > dx) {
-      return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+  // Compute Bezier control points for curved wires with smart fanning
+  const getWirePath = (x1: number, y1: number, x2: number, y2: number, offset = 0) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const nx = -dy / (dist || 1);
+    const ny = dx / (dist || 1);
+
+    if (Math.abs(dy) > Math.abs(dx)) {
+      const midY = (y1 + y2) / 2;
+      return `M ${x1} ${y1} C ${x1 + nx * offset} ${midY}, ${x2 + nx * offset} ${midY}, ${x2} ${y2}`;
     } else {
-      return `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+      const midX = (x1 + x2) / 2;
+      return `M ${x1} ${y1} C ${midX} ${y1 + ny * offset}, ${midX} ${y2 + ny * offset}, ${x2} ${y2}`;
     }
   };
 
@@ -481,6 +537,18 @@ export const Breadboard2D: React.FC = () => {
               />
             ))}
           </div>
+
+          {/* Reorganize Wires Button */}
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => reorganizeWires(true)}
+            disabled={isRunning || wires.length === 0}
+            title="Auto-reorganize and color wires by electrical role"
+            style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+          >
+            <Sparkles size={13} style={{ color: 'var(--accent-blue)' }} />
+            Reorganize Cables
+          </button>
 
           <button
             className="btn btn-outline btn-sm"
@@ -688,6 +756,26 @@ export const Breadboard2D: React.FC = () => {
                 headerColor = '#475569';
                 bodyColor = '#0f172a';
                 strokeColor = 'rgba(203, 213, 225, 0.4)';
+              } else if (comp.type === 'l293d') {
+                headerColor = '#4c0519';
+                bodyColor = '#1c050b';
+                strokeColor = 'rgba(244, 63, 94, 0.4)';
+              } else if (comp.type === 'button') {
+                headerColor = '#0369a1';
+                bodyColor = '#082f49';
+                strokeColor = 'rgba(56, 189, 248, 0.4)';
+              } else if (comp.type === 'potentiometer') {
+                headerColor = '#b45309';
+                bodyColor = '#451a03';
+                strokeColor = 'rgba(251, 191, 36, 0.4)';
+              } else if (comp.type === 'oscilloscope') {
+                headerColor = '#065f46';
+                bodyColor = '#022c22';
+                strokeColor = 'rgba(52, 211, 153, 0.4)';
+              } else if (comp.type === 'wheel') {
+                headerColor = '#334155';
+                bodyColor = '#0f172a';
+                strokeColor = 'rgba(148, 163, 184, 0.4)';
               }
 
               const isSelected = selectedIds.has(comp.id);
@@ -752,40 +840,87 @@ export const Breadboard2D: React.FC = () => {
                     stroke="rgba(255,255,255,0.06)"
                   />
 
-                  {/* Header Text */}
-                  <text
-                    x="10"
-                    y="17"
-                    fill="#ffffff"
-                    fontSize="11"
-                    fontWeight="bold"
-                    letterSpacing="0.3"
-                    style={{ pointerEvents: 'none', fontFamily: 'var(--font-sans)' }}
-                  >
-                    {comp.label}
-                  </text>
+                  {/* Header Text or Editable Input */}
+                  {editingLabelId === comp.id ? (
+                    <foreignObject x="6" y="2" width={Math.max(100, comp.width - 12)} height="22">
+                      <input
+                        type="text"
+                        value={tempLabel}
+                        onChange={(e) => setTempLabel(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') commitLabelEdit(comp.id);
+                          if (e.key === 'Escape') setEditingLabelId(null);
+                        }}
+                        onBlur={() => commitLabelEdit(comp.id)}
+                        autoFocus
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          background: 'rgba(15, 23, 42, 0.95)',
+                          color: '#ffffff',
+                          border: '1px solid var(--accent-blue)',
+                          borderRadius: '3px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          padding: '0 4px',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          fontFamily: 'var(--font-sans)'
+                        }}
+                      />
+                    </foreignObject>
+                  ) : (
+                    <text
+                      x="10"
+                      y="17"
+                      fill="#ffffff"
+                      fontSize="11"
+                      fontWeight="bold"
+                      letterSpacing="0.3"
+                      onDoubleClick={(e) => startEditingLabel(comp, e)}
+                      style={{ cursor: isRunning ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', userSelect: 'none' }}
+                    >
+                      <title>Double-click to rename</title>
+                      {comp.label}
+                    </text>
+                  )}
 
-                  {/* Selection badge: shows ⌘+Del hint when selected */}
+                  {/* Selection badge: shows ⌘+Del and Rename hints */}
                   {isSelected && !isRunning && (
-                    <g style={{ pointerEvents: 'none' }}>
+                    <g>
                       <rect
-                        x={comp.width - 54}
+                        x={comp.width - 120}
                         y="-18"
-                        width="58"
+                        width="124"
                         height="16"
                         rx="4"
                         fill="rgba(59,130,246,0.9)"
                       />
                       <text
-                        x={comp.width - 25}
+                        x={comp.width - 92}
                         y="-7"
                         fill="#ffffff"
-                        fontSize="8"
+                        fontSize="7.5"
+                        fontWeight="600"
+                        fontFamily="var(--font-mono)"
+                        textAnchor="middle"
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => startEditingLabel(comp, e)}
+                      >
+                        ✎ RENAME
+                      </text>
+                      <line x1={comp.width - 60} y1="-16" x2={comp.width - 60} y2="-4" stroke="rgba(255,255,255,0.4)" />
+                      <text
+                        x={comp.width - 28}
+                        y="-7"
+                        fill="#ffffff"
+                        fontSize="7.5"
                         fontWeight="600"
                         fontFamily="var(--font-mono)"
                         textAnchor="middle"
                       >
-                        ⌘+DEL to delete
+                        ⌘+DEL
                       </text>
                     </g>
                   )}
@@ -793,12 +928,56 @@ export const Breadboard2D: React.FC = () => {
                   {/* Component Custom Rendering */}
                   {comp.type === 'arduino' && (
                     <g style={{ pointerEvents: 'none' }}>
-                      <rect x="50" y="50" width="100" height="30" rx="2" fill="#0f172a" stroke="rgba(255,255,255,0.05)" />
-                      <text x="65" y="68" fill="rgba(255,255,255,0.2)" fontSize="10" fontFamily="var(--font-mono)">ATMEGA328P</text>
-                      <rect x="-10" y="30" width="30" height="40" rx="3" fill="#64748b" />
-                      <rect x="-5" y="90" width="30" height="35" rx="3" fill="#1e293b" />
-                      <circle cx="28" cy="18" r="3" fill={ledOn ? '#10b981' : '#ef4444'} />
-                      <text x="35" y="21" fill="rgba(255,255,255,0.4)" fontSize="7">L</text>
+                      {/* ATmega328P Chip */}
+                      <rect x="55" y="58" width="95" height="28" rx="2" fill="#0f172a" stroke="rgba(255,255,255,0.08)" />
+                      <text x="68" y="75" fill="rgba(255,255,255,0.35)" fontSize="9" fontWeight="bold" fontFamily="var(--font-mono)">ATMEGA328P</text>
+                      
+                      {/* USB Type B Port */}
+                      <rect x="-8" y="32" width="26" height="34" rx="2" fill="#94a3b8" stroke="#64748b" strokeWidth="1" />
+                      <rect x="-8" y="40" width="12" height="18" fill="#475569" />
+
+                      {/* DC Power Barrel Jack */}
+                      <rect x="-6" y="85" width="28" height="36" rx="2" fill="#1e293b" stroke="#334155" strokeWidth="1" />
+                      <circle cx="6" cy="103" r="5" fill="#475569" />
+
+                      {/* 16MHz Crystal Oscillator */}
+                      <rect x="25" y="60" width="16" height="8" rx="3" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.8" />
+                      <text x="33" y="66" fill="#475569" fontSize="5" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">16.0</text>
+
+                      {/* Reset Button */}
+                      <rect x="25" y="32" width="12" height="12" rx="2" fill="#475569" />
+                      <circle cx="31" cy="38" r="4" fill="#ef4444" />
+
+                      {/* ICSP Header (6 pins) */}
+                      <rect x="165" y="60" width="18" height="22" rx="1" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                      {[0, 1].map(col => [0, 1, 2].map(row => (
+                        <circle key={`${col}-${row}`} cx={170 + col * 8} cy={66 + row * 6} r="1.5" fill="#e2e8f0" />
+                      )))}
+
+                      {/* Header Section Demarcations */}
+                      <rect x="22" y="2" width="170" height="11" fill="rgba(0,0,0,0.4)" rx="2" />
+                      <text x="105" y="10" fill="#38bdf8" fontSize="7" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">DIGITAL (PWM ~)</text>
+
+                      <rect x="45" y="127" width="68" height="11" fill="rgba(0,0,0,0.4)" rx="2" />
+                      <text x="79" y="135" fill="#ef4444" fontSize="6.5" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">POWER</text>
+
+                      <rect x="125" y="127" width="68" height="11" fill="rgba(0,0,0,0.4)" rx="2" />
+                      <text x="159" y="135" fill="#a78bfa" fontSize="6.5" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">ANALOG IN</text>
+
+                      {/* Status LEDs */}
+                      {/* Built-in Pin 13 LED (L) */}
+                      <circle cx="48" cy="46" r="3" fill={ledOn ? '#10b981' : '#ef4444'} style={{ filter: ledOn ? 'drop-shadow(0 0 4px #10b981)' : 'none' }} />
+                      <text x="48" y="41" fill="rgba(255,255,255,0.5)" fontSize="6" textAnchor="middle" fontWeight="bold">L</text>
+
+                      {/* TX / RX LEDs */}
+                      <circle cx="62" cy="46" r="2" fill={isRunning ? '#fbbf24' : '#64748b'} />
+                      <text x="62" y="41" fill="rgba(255,255,255,0.4)" fontSize="5.5" textAnchor="middle">TX</text>
+                      <circle cx="72" cy="46" r="2" fill={isRunning ? '#fbbf24' : '#64748b'} />
+                      <text x="72" y="41" fill="rgba(255,255,255,0.4)" fontSize="5.5" textAnchor="middle">RX</text>
+
+                      {/* ON power LED */}
+                      <circle cx="85" cy="46" r="2.5" fill="#10b981" />
+                      <text x="85" y="41" fill="rgba(255,255,255,0.4)" fontSize="5.5" textAnchor="middle">ON</text>
                     </g>
                   )}
 
@@ -992,6 +1171,164 @@ export const Breadboard2D: React.FC = () => {
                     </g>
                   )}
 
+                  {comp.type === 'l293d' && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x="25" y="15" width="90" height="155" rx="3" fill="#0f172a" stroke="rgba(255,255,255,0.08)" />
+                      {/* Notch */}
+                      <path d="M 60 15 A 10 10 0 0 0 80 15" fill="#1e293b" />
+                      <circle cx="36" cy="28" r="2.5" fill="#64748b" />
+                      <text x="70" y="85" fill="#f8fafc" fontSize="11" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">
+                        L293D
+                      </text>
+                      <text x="70" y="100" fill="var(--text-muted)" fontSize="7" textAnchor="middle" fontFamily="var(--font-mono)">
+                        DUAL H-BRIDGE
+                      </text>
+                      {/* 16 metal pin legs */}
+                      {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                        <React.Fragment key={i}>
+                          <rect x="18" y={22 + i * 20} width="7" height="4" fill="#94a3b8" rx="1" />
+                          <rect x="115" y={22 + i * 20} width="7" height="4" fill="#94a3b8" rx="1" />
+                        </React.Fragment>
+                      ))}
+                    </g>
+                  )}
+
+                  {comp.type === 'button' && (
+                    <g
+                      style={{ cursor: isRunning ? 'pointer' : 'default' }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setButtonState(comp.id, true);
+                      }}
+                      onMouseUp={(e) => {
+                        e.stopPropagation();
+                        setButtonState(comp.id, false);
+                      }}
+                    >
+                      <rect x="-4" y="27" width="8" height="16" fill="#94a3b8" rx="1" />
+                      <rect x="76" y="27" width="8" height="16" fill="#94a3b8" rx="1" />
+                      <rect x="12" y="10" width="56" height="50" rx="4" fill="#1e293b" stroke="#334155" strokeWidth="1.5" />
+                      <circle cx="40" cy="35" r="16" fill={comp.state === 'closed' ? '#38bdf8' : '#334155'} stroke={comp.state === 'closed' ? '#0284c7' : '#475569'} strokeWidth="2" />
+                      <circle cx="40" cy="35" r="10" fill={comp.state === 'closed' ? '#0284c7' : '#1e293b'} />
+                      <text x="40" y="55" fill={comp.state === 'closed' ? '#38bdf8' : 'var(--text-muted)'} fontSize="7" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">
+                        {comp.state === 'closed' ? 'PRESSED' : 'PUSH'}
+                      </text>
+                    </g>
+                  )}
+
+                  {comp.type === 'potentiometer' && (() => {
+                    const potVal = parseInt(comp.state || '512', 10);
+                    const angle = -135 + (potVal / 1023) * 270;
+                    return (
+                      <g
+                        onWheel={(e) => {
+                          e.stopPropagation();
+                          const delta = e.deltaY < 0 ? 32 : -32;
+                          const next = Math.max(0, Math.min(1023, potVal + delta));
+                          setPotValue(comp.id, next);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <circle cx="45" cy="42" r="28" fill="#0f172a" stroke="#334155" strokeWidth="2" />
+                        <circle cx="45" cy="42" r="20" fill="#1e293b" />
+                        <line
+                          x1="45"
+                          y1="42"
+                          x2={45 + 16 * Math.cos((angle - 90) * (Math.PI / 180))}
+                          y2={42 + 16 * Math.sin((angle - 90) * (Math.PI / 180))}
+                          stroke="var(--accent-blue)"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                        />
+                        <circle cx="45" cy="42" r="4.5" fill="#38bdf8" />
+                        <text x="45" y="78" fill="var(--accent-amber)" fontSize="8.5" fontWeight="bold" textAnchor="middle" fontFamily="var(--font-mono)">
+                          {potVal} ({((potVal / 1023) * 5).toFixed(1)}V)
+                        </text>
+                      </g>
+                    );
+                  })()}
+
+                  {comp.type === 'oscilloscope' && (() => {
+                    const ch1 = oscilloscopeData.ch1;
+                    const ch2 = oscilloscopeData.ch2;
+                    const graphW = 180;
+                    const graphH = 80;
+                    const graphX = 20;
+                    const graphY = 35;
+
+                    const ch1Points = ch1.map((v, idx) => {
+                      const x = graphX + (idx / Math.max(1, ch1.length - 1)) * graphW;
+                      const y = graphY + graphH - (Math.max(0, Math.min(5, v)) / 5) * graphH;
+                      return `${x},${y}`;
+                    }).join(' ');
+
+                    const ch2Points = ch2.map((v, idx) => {
+                      const x = graphX + (idx / Math.max(1, ch2.length - 1)) * graphW;
+                      const y = graphY + graphH - (Math.max(0, Math.min(5, v)) / 5) * graphH;
+                      return `${x},${y}`;
+                    }).join(' ');
+
+                    return (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <rect x={graphX} y={graphY} width={graphW} height={graphH} rx="3" fill="#020617" stroke="#1e293b" strokeWidth="1" />
+                        {[1, 2, 3].map(i => (
+                          <line key={`h${i}`} x1={graphX} y1={graphY + i * (graphH / 4)} x2={graphX + graphW} y2={graphY + i * (graphH / 4)} stroke="rgba(56, 189, 248, 0.12)" strokeDasharray="2 2" />
+                        ))}
+                        {[1, 2, 3, 4, 5].map(i => (
+                          <line key={`v${i}`} x1={graphX + i * (graphW / 6)} y1={graphY} x2={graphX + i * (graphW / 6)} y2={graphY + graphH} stroke="rgba(56, 189, 248, 0.12)" strokeDasharray="2 2" />
+                        ))}
+                        <polyline points={ch1Points} fill="none" stroke="#10b981" strokeWidth="1.8" />
+                        <polyline points={ch2Points} fill="none" stroke="#fbbf24" strokeWidth="1.8" />
+                        <text x="25" y="30" fill="#10b981" fontSize="8" fontWeight="bold" fontFamily="var(--font-mono)">
+                          CH1: {(ch1[ch1.length - 1] || 0).toFixed(1)}V
+                        </text>
+                        <text x="90" y="30" fill="#fbbf24" fontSize="8" fontWeight="bold" fontFamily="var(--font-mono)">
+                          CH2: {(ch2[ch2.length - 1] || 0).toFixed(1)}V
+                        </text>
+                      </g>
+                    );
+                  })()}
+
+                  {comp.type === 'wheel' && (
+                    <g>
+                      <circle cx="35" cy="35" r="30" fill="#0f172a" stroke="#334155" strokeWidth="2.5" />
+                      {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => (
+                        <line
+                          key={deg}
+                          x1={35 + 24 * Math.cos(deg * Math.PI / 180)}
+                          y1={35 + 24 * Math.sin(deg * Math.PI / 180)}
+                          x2={35 + 30 * Math.cos(deg * Math.PI / 180)}
+                          y2={35 + 30 * Math.sin(deg * Math.PI / 180)}
+                          stroke="#475569"
+                          strokeWidth="2"
+                        />
+                      ))}
+                      <circle cx="35" cy="35" r="18" fill="#1e293b" stroke="var(--accent-blue)" strokeWidth="1.5" />
+                      <circle cx="35" cy="35" r="6" fill="#94a3b8" />
+                      <rect
+                        x="4"
+                        y="56"
+                        width="62"
+                        height="12"
+                        rx="3"
+                        fill={comp.attachedMotorId ? "rgba(52, 211, 153, 0.2)" : "rgba(255, 255, 255, 0.05)"}
+                        stroke={comp.attachedMotorId ? "#34d399" : "rgba(255, 255, 255, 0.15)"}
+                        strokeWidth="0.8"
+                      />
+                      <text
+                        x="35"
+                        y="65"
+                        fill={comp.attachedMotorId ? "#34d399" : "var(--text-muted)"}
+                        fontSize="6.5"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        fontFamily="var(--font-mono)"
+                      >
+                        {comp.attachedMotorId ? "ATTACHED" : "UNATTACHED"}
+                      </text>
+                    </g>
+                  )}
+
                   {/* Render Component Pins */}
                   {comp.pins.map(pin => {
                     const isPinSelected = selectedPin?.componentId === comp.id && selectedPin?.pinName === pin.name;
@@ -1069,76 +1406,85 @@ export const Breadboard2D: React.FC = () => {
             )}
 
             {/* Render Wire Connections ON TOP of components */}
-            {wires.map(wire => {
-              const start = getPinCoords(wire.from.componentId, wire.from.pinName);
-              const end = getPinCoords(wire.to.componentId, wire.to.pinName);
-              const wirePath = getWirePath(start.x, start.y, end.x, end.y);
+            {(() => {
+              const pairIndices: Record<string, number> = {};
+              return wires.map(wire => {
+                const pairKey = [wire.from.componentId, wire.to.componentId].sort().join('__');
+                const totalInPair = wirePairCounts[pairKey] || 1;
+                const idxInPair = pairIndices[pairKey] || 0;
+                pairIndices[pairKey] = idxInPair + 1;
+                const fanOffset = totalInPair > 1 ? (idxInPair - (totalInPair - 1) / 2) * 18 : 0;
 
-              return (
-                <g key={wire.id} className="wire-group">
-                  {/* Wide transparent hit area for click-to-delete */}
-                  <path
-                    d={wirePath}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth="12"
-                    style={{ cursor: isRunning ? 'default' : 'pointer' }}
-                    onClick={() => !isRunning && deleteWire(wire.id)}
-                  />
-                  {/* Dark outline for contrast against bright components */}
-                  <path
-                    d={wirePath}
-                    fill="none"
-                    stroke="rgba(0,0,0,0.6)"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {/* Colored wire with glow filter */}
-                  <path
-                    d={wirePath}
-                    fill="none"
-                    stroke={wire.color}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    filter="url(#wire-glow)"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {/* Terminal dot at start pin */}
-                  <circle
-                    cx={start.x}
-                    cy={start.y}
-                    r="4"
-                    fill={wire.color}
-                    stroke="rgba(0,0,0,0.7)"
-                    strokeWidth="1.5"
-                    filter="url(#wire-shadow)"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {/* Terminal dot at end pin */}
-                  <circle
-                    cx={end.x}
-                    cy={end.y}
-                    r="4"
-                    fill={wire.color}
-                    stroke="rgba(0,0,0,0.7)"
-                    strokeWidth="1.5"
-                    filter="url(#wire-shadow)"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {/* Animated current particle during simulation */}
-                  {isRunning && (
-                    <circle r="3.5" fill="#ffffff" style={{ pointerEvents: 'none' }}>
-                      <animateMotion
-                        dur="1.5s"
-                        repeatCount="indefinite"
-                        path={wirePath}
-                      />
-                    </circle>
-                  )}
-                </g>
-              );
-            })}
+                const start = getPinCoords(wire.from.componentId, wire.from.pinName);
+                const end = getPinCoords(wire.to.componentId, wire.to.pinName);
+                const wirePath = getWirePath(start.x, start.y, end.x, end.y, fanOffset);
+
+                return (
+                  <g key={wire.id} className="wire-group">
+                    {/* Wide transparent hit area for click-to-delete */}
+                    <path
+                      d={wirePath}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth="12"
+                      style={{ cursor: isRunning ? 'default' : 'pointer' }}
+                      onClick={() => !isRunning && deleteWire(wire.id)}
+                    />
+                    {/* Dark outline for contrast against bright components */}
+                    <path
+                      d={wirePath}
+                      fill="none"
+                      stroke="rgba(0,0,0,0.6)"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {/* Colored wire with glow filter */}
+                    <path
+                      d={wirePath}
+                      fill="none"
+                      stroke={wire.color}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      filter="url(#wire-glow)"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {/* Terminal dot at start pin */}
+                    <circle
+                      cx={start.x}
+                      cy={start.y}
+                      r="4"
+                      fill={wire.color}
+                      stroke="rgba(0,0,0,0.7)"
+                      strokeWidth="1.5"
+                      filter="url(#wire-shadow)"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {/* Terminal dot at end pin */}
+                    <circle
+                      cx={end.x}
+                      cy={end.y}
+                      r="4"
+                      fill={wire.color}
+                      stroke="rgba(0,0,0,0.7)"
+                      strokeWidth="1.5"
+                      filter="url(#wire-shadow)"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {/* Animated current particle during simulation */}
+                    {isRunning && (
+                      <circle r="3.5" fill="#ffffff" style={{ pointerEvents: 'none' }}>
+                        <animateMotion
+                          dur="1.5s"
+                          repeatCount="indefinite"
+                          path={wirePath}
+                        />
+                      </circle>
+                    )}
+                  </g>
+                );
+              });
+            })()}
 
             {/* Live Wire Drawing Preview (always on top) */}
             {selectedPin && (

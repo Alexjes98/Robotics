@@ -50,18 +50,37 @@ export function compileArduinoCode(code: string, getSensorState: (type: 'analog'
     // Remove comments to prevent parsing issues
     jsCode = jsCode.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
 
-    // Transpilation replacements:
-    
+    // Collect all user-defined custom functions
+    const customFunctions = new Set<string>();
+    const funcDeclRegex = /\b(?:void|int|float|double|bool|long|unsigned\s+long|char|String)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*\{/g;
+    let match: RegExpExecArray | null;
+    while ((match = funcDeclRegex.exec(jsCode)) !== null) {
+      const fnName = match[1];
+      if (!['setup', 'loop', 'if', 'while', 'for', 'switch'].includes(fnName)) {
+        customFunctions.add(fnName);
+      }
+    }
+
     // Replace function definitions with generator definitions
     // e.g. void setup() -> function* setup()
     jsCode = jsCode.replace(/\bvoid\s+setup\s*\(\s*\)/g, 'function* setup()');
     jsCode = jsCode.replace(/\bvoid\s+loop\s*\(\s*\)/g, 'function* loop()');
-    // For custom functions, let's turn them into generator functions too, so they can use yields
-    jsCode = jsCode.replace(/\b(void|int|float|double|bool|String)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/g, (match, _returnType, name, args) => {
+
+    // For custom functions, turn them into generator functions too, stripping parameter types
+    jsCode = jsCode.replace(/\b(?:void|int|float|double|bool|long|unsigned\s+long|char|String)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*\{/g, (m, name, args) => {
       if (name === 'setup' || name === 'loop' || name === 'if' || name === 'while' || name === 'for' || name === 'switch') {
-        return match;
+        return m;
       }
-      return `function* ${name}(${args})`;
+      // Strip types from parameters: e.g. "int speed, bool rev" -> "speed, rev"
+      const cleanArgs = args.replace(/\b(?:int|float|double|bool|long|unsigned\s+long|char|String)\s+/g, '');
+      return `function* ${name}(${cleanArgs}) {`;
+    });
+
+    // Replace function calls to custom functions with yield* so generators execute properly and pass returns
+    customFunctions.forEach(fnName => {
+      // Matches calls: fnName(...) that are not definitions or already yielded
+      const callRegex = new RegExp(`(?<!function\\*\\s*)(?<!yield\\*\\s*)\\b${fnName}\\s*\\(`, 'g');
+      jsCode = jsCode.replace(callRegex, `yield* ${fnName}(`);
     });
 
     // Replace variable declarations: int x = 5; -> let x = 5;
@@ -105,6 +124,9 @@ export function compileArduinoCode(code: string, getSensorState: (type: 'analog'
     // Replace analogRead(pin) -> yield { type: 'analogRead', pin }
     jsCode = jsCode.replace(/\banalogRead\s*\(\s*([^)]+)\s*\)/g, '(yield { type: "analogRead", pin: ($1) })');
 
+    // Replace pulseIn(pin, val) -> yield { type: 'pulseIn', pin, val }
+    jsCode = jsCode.replace(/\bpulseIn\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)/g, '(yield { type: "pulseIn", pin: ($1), val: ($2) })');
+
     // Replace Serial.println(msg) -> yield { type: 'serial', val: msg, ln: true }
     jsCode = jsCode.replace(/\bSerial\.println\s*\(\s*([^)]*)\s*\)/g, 'yield { type: "serial", val: ($1), ln: true }');
     jsCode = jsCode.replace(/\bSerial\.print\s*\(\s*([^)]*)\s*\)/g, 'yield { type: "serial", val: ($1), ln: false }');
@@ -123,6 +145,17 @@ export function compileArduinoCode(code: string, getSensorState: (type: 'analog'
       const INPUT_PULLUP = "INPUT_PULLUP";
       
       const A0 = 14, A1 = 15, A2 = 16, A3 = 17, A4 = 18, A5 = 19;
+
+      const millis = () => Date.now();
+      const micros = () => Date.now() * 1000;
+      const constrain = (amt, low, high) => ((amt)<(low)?(low):((amt)>(high)?(high):(amt)));
+      const map = (x, in_min, in_max, out_min, out_max) => (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+      const min = Math.min;
+      const max = Math.max;
+      const abs = Math.abs;
+      const sq = (x) => x * x;
+      const sqrt = Math.sqrt;
+      const random = (min, max) => max === undefined ? Math.floor(Math.random() * min) : Math.floor(Math.random() * (max - min)) + min;
       
       ${jsCode}
       

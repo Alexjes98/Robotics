@@ -9,10 +9,28 @@ export interface Pin {
   type: 'power' | 'gnd' | 'digital' | 'analog' | 'motor-out' | 'motor-in' | 'signal';
 }
 
+export type ComponentType =
+  | 'arduino'
+  | 'hbridge'
+  | 'motor'
+  | 'sensor'
+  | 'battery'
+  | 'led'
+  | 'ldr'
+  | 'breadboard'
+  | 'resistor'
+  | 'spst'
+  | 'spdt'
+  | 'l293d'
+  | 'button'
+  | 'potentiometer'
+  | 'oscilloscope'
+  | 'wheel';
+
 // --- Component Definition ---
 export interface RoboticComponent {
   id: string; // unique, e.g. "arduino_0", "resistor_1"
-  type: 'arduino' | 'hbridge' | 'motor' | 'sensor' | 'battery' | 'led' | 'ldr' | 'breadboard' | 'resistor' | 'spst' | 'spdt';
+  type: ComponentType;
   label: string;
   x: number; // canvas absolute x
   y: number; // canvas absolute y
@@ -21,7 +39,8 @@ export interface RoboticComponent {
   pins: Pin[];
   
   color?: 'red' | 'green' | 'blue' | 'yellow' | 'white';
-  state?: 'open' | 'closed' | 'L1' | 'L2';
+  state?: 'open' | 'closed' | 'L1' | 'L2' | string;
+  attachedMotorId?: string; // For wheel component
 
   // 3D positioning and rotation (Welding)
   x3d: number;
@@ -300,6 +319,100 @@ export const INITIAL_COMPONENTS: RoboticComponent[] = [
     state: 'L1',
     x3d: 0.1, y3d: 0.05, z3d: -0.2,
     rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'l293d',
+    type: 'l293d',
+    label: 'L293D Motor Driver',
+    x: 320,
+    y: 380,
+    width: 140,
+    height: 180,
+    pins: [
+      { name: '1,2EN', x: 0, y: 22, type: 'signal' },
+      { name: '1A', x: 0, y: 44, type: 'signal' },
+      { name: '1Y', x: 0, y: 66, type: 'motor-out' },
+      { name: 'GND1', x: 0, y: 88, type: 'gnd' },
+      { name: 'GND2', x: 0, y: 110, type: 'gnd' },
+      { name: '2Y', x: 0, y: 132, type: 'motor-out' },
+      { name: '2A', x: 0, y: 154, type: 'signal' },
+      { name: 'VCC2', x: 0, y: 176, type: 'power' },
+
+      { name: 'VCC1', x: 140, y: 22, type: 'power' },
+      { name: '4A', x: 140, y: 44, type: 'signal' },
+      { name: '4Y', x: 140, y: 66, type: 'motor-out' },
+      { name: 'GND3', x: 140, y: 88, type: 'gnd' },
+      { name: 'GND4', x: 140, y: 110, type: 'gnd' },
+      { name: '3Y', x: 140, y: 132, type: 'motor-out' },
+      { name: '3A', x: 140, y: 154, type: 'signal' },
+      { name: '3,4EN', x: 140, y: 176, type: 'signal' }
+    ],
+    x3d: 0, y3d: 0.05, z3d: -0.15,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'button',
+    type: 'button',
+    label: 'Push Button',
+    x: 100,
+    y: 100,
+    width: 80,
+    height: 70,
+    pins: [
+      { name: 'P1', x: 0, y: 35, type: 'signal' },
+      { name: 'P2', x: 80, y: 35, type: 'signal' }
+    ],
+    state: 'open',
+    x3d: -0.15, y3d: 0.05, z3d: 0.2,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'potentiometer',
+    type: 'potentiometer',
+    label: 'Potentiometer',
+    x: 100,
+    y: 100,
+    width: 90,
+    height: 90,
+    pins: [
+      { name: 'VCC', x: 20, y: 90, type: 'power' },
+      { name: 'Wiper', x: 45, y: 90, type: 'analog' },
+      { name: 'GND', x: 70, y: 90, type: 'gnd' }
+    ],
+    state: '512',
+    x3d: 0.15, y3d: 0.05, z3d: 0.2,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'oscilloscope',
+    type: 'oscilloscope',
+    label: 'Oscilloscope',
+    x: 450,
+    y: 100,
+    width: 220,
+    height: 150,
+    pins: [
+      { name: 'CH1', x: 40, y: 150, type: 'signal' },
+      { name: 'GND', x: 110, y: 150, type: 'gnd' },
+      { name: 'CH2', x: 180, y: 150, type: 'signal' }
+    ],
+    state: '10',
+    x3d: 0, y3d: 0.12, z3d: -0.32,
+    rx3d: 0, ry3d: 0, rz3d: 0
+  },
+  {
+    id: 'wheel',
+    type: 'wheel',
+    label: 'Wheel',
+    x: 100,
+    y: 100,
+    width: 70,
+    height: 70,
+    pins: [
+      { name: 'SHAFT', x: 35, y: 35, type: 'motor-in' }
+    ],
+    x3d: -0.42, y3d: 0, z3d: 0,
+    rx3d: 0, ry3d: 0, rz3d: 0
   }
 ];
 
@@ -448,10 +561,32 @@ interface SimulatorContextType {
   motorPowerStates: Record<string, number>; // motor ID -> speed (-255 to 255)
   selected3DId: string | null;
 
+  // Theme
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
+
+  // 3D Scene Controls & Mesh
+  labelMode3D: 'full' | 'minimal' | 'hidden';
+  setLabelMode3D: (mode: 'full' | 'minimal' | 'hidden') => void;
+  isWelderPanelOpen: boolean;
+  setIsWelderPanelOpen: (open: boolean) => void;
+  isEnvPanelOpen: boolean;
+  setIsEnvPanelOpen: (open: boolean) => void;
+  customMesh: { type: 'stl' | 'obj'; content: string | ArrayBuffer; name: string } | null;
+  setCustomMesh: (mesh: { type: 'stl' | 'obj'; content: string | ArrayBuffer; name: string } | null) => void;
+
+  // Oscilloscope live telemetry
+  oscilloscopeData: { ch1: number[]; ch2: number[] };
+
   // Actions
   setComponents: React.Dispatch<React.SetStateAction<RoboticComponent[]>>;
   addComponent: (type: RoboticComponent['type']) => void;
   deleteComponent: (id: string) => void;
+  updateComponentLabel: (id: string, label: string) => void;
+  reorganizeWires: (autoColor?: boolean) => void;
+  setButtonState: (id: string, pressed: boolean) => void;
+  setPotValue: (id: string, value: number) => void;
+  attachWheelToMotor: (wheelId: string, motorId: string | null) => void;
   addWire: (from: { componentId: string; pinName: string }, to: { componentId: string; pinName: string }) => void;
   deleteWire: (id: string) => void;
   clearWires: () => void;
@@ -496,6 +631,32 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [error, setError] = useState<string | null>(null);
   const [serialLogs, setSerialLogs] = useState<string[]>([]);
   const [activeWireColor, setActiveWireColor] = useState<string>('#ef4444');
+
+  // Theme state
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('robolab_theme') as 'dark' | 'light') || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('robolab_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // 3D scene controls
+  const [labelMode3D, setLabelMode3D] = useState<'full' | 'minimal' | 'hidden'>('minimal');
+  const [isWelderPanelOpen, setIsWelderPanelOpen] = useState<boolean>(true);
+  const [isEnvPanelOpen, setIsEnvPanelOpen] = useState<boolean>(true);
+  const [customMesh, setCustomMesh] = useState<{ type: 'stl' | 'obj'; content: string | ArrayBuffer; name: string } | null>(null);
+
+  // Oscilloscope live telemetry buffer
+  const [oscilloscopeData, setOscilloscopeData] = useState<{ ch1: number[]; ch2: number[] }>({
+    ch1: Array(30).fill(0),
+    ch2: Array(30).fill(0)
+  });
 
   // HUD and Welder Selects
   const [selected3DId, setSelected3DId] = useState<string | null>(null);
@@ -632,6 +793,47 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setError(null);
   };
 
+  const updateComponentLabel = (id: string, label: string) => {
+    setComponents(prev => prev.map(comp => comp.id === id ? { ...comp, label } : comp));
+  };
+
+  const setButtonState = (id: string, pressed: boolean) => {
+    setComponents(prev => prev.map(comp => comp.id === id ? { ...comp, state: pressed ? 'closed' : 'open' } : comp));
+  };
+
+  const setPotValue = (id: string, value: number) => {
+    setComponents(prev => prev.map(comp => comp.id === id ? { ...comp, state: String(value) } : comp));
+  };
+
+  const attachWheelToMotor = (wheelId: string, motorId: string | null) => {
+    setComponents(prev => prev.map(comp => comp.id === wheelId ? { ...comp, attachedMotorId: motorId || undefined } : comp));
+  };
+
+  const reorganizeWires = (autoColor = true) => {
+    if (wires.length === 0) return;
+    setWires(prevWires => {
+      return prevWires.map(wire => {
+        if (!autoColor) return wire;
+        const p1 = wire.from.pinName.toUpperCase();
+        const p2 = wire.to.pinName.toUpperCase();
+
+        if (p1.includes('5V') || p2.includes('5V') || p1.includes('VCC') || p2.includes('VCC') || p1.includes('12V') || p2.includes('12V') || p1 === '+' || p2 === '+' || p1.startsWith('V+') || p2.startsWith('V+')) {
+          return { ...wire, color: '#ef4444' };
+        }
+        if (p1.includes('GND') || p2.includes('GND') || p1 === '-' || p2 === '-' || p1.startsWith('G') || p2.startsWith('G') || p1 === 'CATHODE' || p2 === 'CATHODE') {
+          return { ...wire, color: '#1e1b4b' };
+        }
+        if (p1.startsWith('A') || p2.startsWith('A') || p1 === 'WIPER' || p2 === 'WIPER' || p1 === 'OUT' || p2 === 'OUT') {
+          return { ...wire, color: '#a78bfa' };
+        }
+        if (['D3', 'D5', 'D6', 'D9', 'D10', 'D11'].includes(p1) || ['D3', 'D5', 'D6', 'D9', 'D10', 'D11'].includes(p2)) {
+          return { ...wire, color: '#fbbf24' };
+        }
+        return { ...wire, color: '#38bdf8' };
+      });
+    });
+  };
+
   const toggleSwitch = (id: string) => {
     setComponents(prev => prev.map(comp => {
       if (comp.id === id) {
@@ -639,6 +841,8 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return { ...comp, state: comp.state === 'closed' ? 'open' : 'closed' };
         } else if (comp.type === 'spdt') {
           return { ...comp, state: comp.state === 'L2' ? 'L1' : 'L2' };
+        } else if (comp.type === 'button') {
+          return { ...comp, state: comp.state === 'closed' ? 'open' : 'closed' };
         }
       }
       return comp;
@@ -727,6 +931,31 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (adj[com] && adj[targetPin]) {
           adj[com].push(targetPin);
           adj[targetPin].push(com);
+        }
+      }
+
+      // Button internal connection when pressed
+      if (c.type === 'button' && c.state === 'closed') {
+        const u = `${c.id}:P1`;
+        const v = `${c.id}:P2`;
+        if (adj[u] && adj[v]) {
+          adj[u].push(v);
+          adj[v].push(u);
+        }
+      }
+
+      // L293D common GND pins
+      if (c.type === 'l293d') {
+        const gnds = ['GND1', 'GND2', 'GND3', 'GND4'].map(p => `${c.id}:${p}`);
+        for (let i = 0; i < gnds.length; i++) {
+          for (let j = i + 1; j < gnds.length; j++) {
+            const u = gnds[i];
+            const v = gnds[j];
+            if (adj[u] && adj[v]) {
+              adj[u].push(v);
+              adj[v].push(u);
+            }
+          }
         }
       }
     });
@@ -932,14 +1161,49 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
             let nextFeedValue: any = undefined;
             const lastYield = (currentGen as any)._lastYield;
-            if (lastYield && lastYield.type === 'analogRead') {
+            if (lastYield) {
               const pin = lastYield.pin;
               const pinName = pin >= 14 ? `A${pin - 14}` : `D${pin}`;
               const arduinoPinKey = `${arduino!.id}:${pinName}`;
-              
-              const ldr = components.find(c => c.type === 'ldr');
-              if (ldr && isConnected(arduinoPinKey, `${ldr.id}:Out`)) {
-                nextFeedValue = lightLevel;
+
+              if (lastYield.type === 'analogRead') {
+                const ldr = components.find(c => c.type === 'ldr');
+                if (ldr && isConnected(arduinoPinKey, `${ldr.id}:Out`)) {
+                  nextFeedValue = lightLevel;
+                }
+                const pot = components.find(c => c.type === 'potentiometer');
+                if (pot && (isConnected(arduinoPinKey, `${pot.id}:Wiper`) || isConnected(arduinoPinKey, `${pot.id}:SIG`))) {
+                  nextFeedValue = pot.state ? parseInt(pot.state, 10) : 512;
+                }
+              } else if (lastYield.type === 'pulseIn') {
+                const sensor = components.find(c => c.type === 'sensor');
+                if (sensor && isConnected(arduinoPinKey, `${sensor.id}:Echo`)) {
+                  nextFeedValue = Math.round(sensorDistance);
+                } else {
+                  nextFeedValue = 0;
+                }
+              } else if (lastYield.type === 'digitalRead') {
+                const mode = refs.pinModes[pin];
+                let pinVal = mode === 'INPUT_PULLUP' ? 1 : 0;
+                // Check if any active VCC source is connected
+                components.forEach(c => {
+                  if (c.type === 'battery' && isConnected(arduinoPinKey, `${c.id}:+`)) pinVal = 1;
+                  if (c.type === 'arduino' && (isConnected(arduinoPinKey, `${c.id}:5V`) || isConnected(arduinoPinKey, `${c.id}:3.3V`))) pinVal = 1;
+                });
+                // If button connected to GND is pressed, pull to 0
+                const buttons = components.filter(c => c.type === 'button');
+                buttons.forEach(btn => {
+                  if (btn.state === 'closed') {
+                    const bP1 = `${btn.id}:P1`;
+                    const bP2 = `${btn.id}:P2`;
+                    const isGndP1 = components.some(c => (c.type === 'arduino' && (isConnected(bP1, `${c.id}:GND1`) || isConnected(bP1, `${c.id}:GND2`) || isConnected(bP1, `${c.id}:GND3`))) || (c.type === 'battery' && isConnected(bP1, `${c.id}:-`)));
+                    const isGndP2 = components.some(c => (c.type === 'arduino' && (isConnected(bP2, `${c.id}:GND1`) || isConnected(bP2, `${c.id}:GND2`) || isConnected(bP2, `${c.id}:GND3`))) || (c.type === 'battery' && isConnected(bP2, `${c.id}:-`)));
+                    if ((isGndP1 && isConnected(arduinoPinKey, bP2)) || (isGndP2 && isConnected(arduinoPinKey, bP1))) {
+                      pinVal = 0;
+                    }
+                  }
+                });
+                nextFeedValue = pinVal;
               }
             }
 
@@ -985,6 +1249,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                   break;
                 case 'digitalRead':
                 case 'analogRead':
+                case 'pulseIn':
                   running = false;
                   break;
               }
@@ -1100,6 +1365,83 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       });
 
+      // Potentiometer voltage output
+      components.forEach(c => {
+        if (c.type === 'potentiometer') {
+          const potVal = parseInt(c.state || '512', 10);
+          const ratio = Math.max(0, Math.min(1023, potVal)) / 1023;
+          activeSources.push({ pinName: `${c.id}:Wiper`, voltage: 5 * ratio, sourceId: c.id, type: ratio > 0 ? 'vcc' : 'gnd' });
+        }
+      });
+
+      // L293D dual H-bridge driver outputs
+      const l293ds = components.filter(c => c.type === 'l293d');
+      l293ds.forEach(chip => {
+        let hasPower = false;
+        let vcc2Volts = 9.0;
+        components.forEach(bat => {
+          if (bat.type === 'battery') {
+            const hasGnd = ['GND1', 'GND2', 'GND3', 'GND4'].some(g => isConnected(`${chip.id}:${g}`, `${bat.id}:-`));
+            if (hasGnd && (isConnected(`${chip.id}:VCC2`, `${bat.id}:+`) || isConnected(`${chip.id}:VCC1`, `${bat.id}:+`))) {
+              hasPower = true;
+              vcc2Volts = 9.0;
+            }
+          }
+        });
+        components.forEach(ard => {
+          if (ard.type === 'arduino') {
+            const hasGnd = ['GND1', 'GND2', 'GND3', 'GND4'].some(g => 
+              isConnected(`${chip.id}:${g}`, `${ard.id}:GND1`) || 
+              isConnected(`${chip.id}:${g}`, `${ard.id}:GND2`) || 
+              isConnected(`${chip.id}:${g}`, `${ard.id}:GND3`)
+            );
+            if (hasGnd && isConnected(`${chip.id}:VCC1`, `${ard.id}:5V`)) {
+              hasPower = true;
+            }
+          }
+        });
+
+        const checkL293DInput = (pinName: string): number => {
+          const pinKey = `${chip.id}:${pinName}`;
+          let state = 0;
+          activeSources.forEach(src => {
+            if (isConnected(pinKey, src.pinName) && src.type === 'vcc') {
+              state = 1;
+            }
+          });
+          return state;
+        };
+
+        const en1 = checkL293DInput('1,2EN');
+        const in1A = checkL293DInput('1A');
+        const in2A = checkL293DInput('2A');
+
+        const en2 = checkL293DInput('3,4EN');
+        const in3A = checkL293DInput('3A');
+        const in4A = checkL293DInput('4A');
+
+        if (hasPower) {
+          if (en1 === 1) {
+            if (in1A === 1 && in2A === 0) {
+              activeSources.push({ pinName: `${chip.id}:1Y`, voltage: vcc2Volts, sourceId: chip.id, type: 'vcc' });
+              activeSources.push({ pinName: `${chip.id}:2Y`, voltage: 0, sourceId: chip.id, type: 'gnd' });
+            } else if (in1A === 0 && in2A === 1) {
+              activeSources.push({ pinName: `${chip.id}:1Y`, voltage: 0, sourceId: chip.id, type: 'gnd' });
+              activeSources.push({ pinName: `${chip.id}:2Y`, voltage: vcc2Volts, sourceId: chip.id, type: 'vcc' });
+            }
+          }
+          if (en2 === 1) {
+            if (in3A === 1 && in4A === 0) {
+              activeSources.push({ pinName: `${chip.id}:3Y`, voltage: vcc2Volts, sourceId: chip.id, type: 'vcc' });
+              activeSources.push({ pinName: `${chip.id}:4Y`, voltage: 0, sourceId: chip.id, type: 'gnd' });
+            } else if (in3A === 0 && in4A === 1) {
+              activeSources.push({ pinName: `${chip.id}:3Y`, voltage: 0, sourceId: chip.id, type: 'gnd' });
+              activeSources.push({ pinName: `${chip.id}:4Y`, voltage: vcc2Volts, sourceId: chip.id, type: 'vcc' });
+            }
+          }
+        }
+      });
+
       // BFS Pathfinding helper to check general connectivity (with or without resistors)
       const hasPathBetween = (pinA: string, pinB: string, includeResistors: boolean): boolean => {
         const adj: Record<string, string[]> = {};
@@ -1177,6 +1519,31 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             if (adj[com] && adj[targetPin]) {
               adj[com].push(targetPin);
               adj[targetPin].push(com);
+            }
+          }
+
+          // Button internal connection when pressed
+          if (c.type === 'button' && c.state === 'closed') {
+            const u = `${c.id}:P1`;
+            const v = `${c.id}:P2`;
+            if (adj[u] && adj[v]) {
+              adj[u].push(v);
+              adj[v].push(u);
+            }
+          }
+
+          // L293D common GND pins
+          if (c.type === 'l293d') {
+            const gnds = ['GND1', 'GND2', 'GND3', 'GND4'].map(p => `${c.id}:${p}`);
+            for (let i = 0; i < gnds.length; i++) {
+              for (let j = i + 1; j < gnds.length; j++) {
+                const u = gnds[i];
+                const v = gnds[j];
+                if (adj[u] && adj[v]) {
+                  adj[u].push(v);
+                  adj[v].push(u);
+                }
+              }
             }
           }
         });
@@ -1284,12 +1651,16 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let speedL = 0;
       let speedR = 0;
 
+      const placedWheels = components.filter(c => c.type === 'wheel');
       components.forEach(c => {
         if (c.type === 'motor') {
-          if (c.x3d < 0) {
-            speedL += (nextMotorStates[c.id] || 0) / 255;
-          } else {
-            speedR += (nextMotorStates[c.id] || 0) / 255;
+          const isWheelAttached = placedWheels.length === 0 || placedWheels.some(w => w.attachedMotorId === c.id);
+          if (isWheelAttached) {
+            if (c.x3d < 0) {
+              speedL += (nextMotorStates[c.id] || 0) / 255;
+            } else {
+              speedR += (nextMotorStates[c.id] || 0) / 255;
+            }
           }
         }
       });
@@ -1356,6 +1727,27 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return [nx, prev[1], nz];
       });
 
+      // 4. Oscilloscope live probe sampling
+      const oscList = components.filter(c => c.type === 'oscilloscope');
+      if (oscList.length > 0) {
+        oscList.forEach(osc => {
+          let ch1Volts = 0;
+          let ch2Volts = 0;
+          activeSources.forEach(src => {
+            if (isConnected(`${osc.id}:CH1`, src.pinName)) {
+              ch1Volts = Math.max(ch1Volts, src.voltage);
+            }
+            if (isConnected(`${osc.id}:CH2`, src.pinName)) {
+              ch2Volts = Math.max(ch2Volts, src.voltage);
+            }
+          });
+          setOscilloscopeData(prev => ({
+            ch1: [...prev.ch1.slice(-29), ch1Volts],
+            ch2: [...prev.ch2.slice(-29), ch2Volts]
+          }));
+        });
+      }
+
       animationFrameRef.current = requestAnimationFrame(simulationTick);
     };
 
@@ -1381,6 +1773,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         y: comp.y,
         color: comp.color,
         state: comp.state,
+        attachedMotorId: comp.attachedMotorId,
         x3d: comp.x3d,
         y3d: comp.y3d,
         z3d: comp.z3d,
@@ -1459,6 +1852,7 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           y: typeof item.y === 'number' ? item.y : template.y,
           color: item.color,
           state: item.state || template.state,
+          attachedMotorId: item.attachedMotorId,
           x3d: typeof item.x3d === 'number' ? item.x3d : template.x3d,
           y3d: typeof item.y3d === 'number' ? item.y3d : template.y3d,
           z3d: typeof item.z3d === 'number' ? item.z3d : template.z3d,
@@ -1515,9 +1909,26 @@ export const SimulatorProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         loadingSteps,
         currentLoadingStep,
         
+        theme,
+        toggleTheme,
+        labelMode3D,
+        setLabelMode3D,
+        isWelderPanelOpen,
+        setIsWelderPanelOpen,
+        isEnvPanelOpen,
+        setIsEnvPanelOpen,
+        customMesh,
+        setCustomMesh,
+        oscilloscopeData,
+        
         setComponents,
         addComponent,
         deleteComponent,
+        updateComponentLabel,
+        reorganizeWires,
+        setButtonState,
+        setPotValue,
+        attachWheelToMotor,
         addWire,
         deleteWire,
         clearWires,
